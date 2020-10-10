@@ -20,17 +20,19 @@ var IP_api: PChar = 'N:TCP://api.ipstack.com:80';
     responseBuffer: array [0..0] of byte absolute JSON_BUFFER;
     jsonStart, jsonEnd, jsonPtr: word;
 
-    ip,country,country_code,long,lat,zip:Tstring;
+    ip,country,country_code,longitude,latitude,zip:Tstring;
     city:string[80];
     ccode_imperial: array [0..7] of string[2] = ('US', 'GB', 'IN', 'IE', 'CA', 'AU', 'HK', 'NZ');
     utfMap192: array [0..0] of byte absolute UTFTABLE192;
     windDir: array [0..7] of string[2] = ('N ', 'NE', 'E ', 'SE', 'S ', 'SW', 'W ', 'NW');
-    weatherDesc, weatherMain, icon, temp, feels, pressure, humidity, windSpeed, windAngle, clouds:TString;
+    monthNames: array [0..11] of string[5] = (' Jan ', ' Feb ', ' Mar ', ' Apr ', ' May ', ' Jun ', ' Jul ', ' Aug ', ' Sep ',' Oct ',' Nov ',' Dec ');
+    dowNames: array [0..6] of string[3] = ('Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat');
+    tmp, weatherDesc, icon, temp, feels, pressure, humidity, windSpeed, windAngle, clouds, dewpoint, visibility:TString;
     unixTime:cardinal;
     timezone:integer;
     curDate, sunriseDate, sunsetDate : TdateTime;
 
-    i: byte;
+    i,menuDelay: byte;
     k: char;
     
     units:TUnits;
@@ -60,6 +62,7 @@ var IP_api: PChar = 'N:TCP://api.ipstack.com:80';
     colorsNTSC: array [0..3] of byte = ( $a6, $2c, $0f, $90 );
     colorsPAL:  array [0..3] of byte = ( $96, $ec, $0f, $80 );
     colors: array [0..0] of byte;
+    cityColor, textColor, menuColor: byte;
     
     olddli:pointer;
   
@@ -114,8 +117,8 @@ begin
     utfNormalize(city);
     country := getJsonKeyValue('country_name');
     country_code := getJsonKeyValue('country_code');
-    lat := getJsonKeyValue('latitude');
-    long := getJsonKeyValue('longitude');
+    latitude := getJsonKeyValue('latitude');
+    longitude := getJsonKeyValue('longitude');
     zip := getJsonKeyValue('zip');
     units := metric;
     if isCCImperial(country_code) then units := imperial;
@@ -124,7 +127,7 @@ end;
 
 procedure ParseWeather;
 begin
-    timezone := StrToInt(getJsonKeyValue('timezone'));
+    timezone := StrToInt(getJsonKeyValue('timezone_offset'));
     unixTime := StrToInt(getJsonKeyValue('dt'));
     unixtime := unixtime + timezone;
     UnixToDate(unixtime, curDate);
@@ -135,16 +138,42 @@ begin
     unixtime := unixtime + timezone;
     UnixToDate(unixtime, sunsetDate);
     
-    weatherMain := getJsonKeyValue('main');
+    //weatherMain := getJsonKeyValue('main');
     weatherDesc := getJsonKeyValue('description');
     icon := getJsonKeyValue('icon');
     temp := getJsonKeyValue('temp');
     feels := getJsonKeyValue('feels_like');
     pressure := getJsonKeyValue('pressure');
     humidity := getJsonKeyValue('humidity');
-    windSpeed := getJsonKeyValue('speed');
-    windAngle := getJsonKeyValue('deg');
-    clouds := getJsonKeyValue('all');    
+    dewpoint := getJsonKeyValue('dew_point');
+    visibility := getJsonKeyValue('visibility');
+    windSpeed := getJsonKeyValue('wind_speed');
+    windAngle := getJsonKeyValue('wind_deg');
+    clouds := getJsonKeyValue('clouds');    
+end;
+
+procedure FakeWeather;
+var date: array [0..7] of byte = (3,$ee,6,9,21,37,03,0);
+begin
+    UnixToDate(unixtime, curDate);
+    Move(date, curDate,8);
+    Move(date, sunriseDate,8);
+    Move(date, sunsetDate,8);
+    
+    city := 'Einsturzende Neubauten';
+    country_code := 'DE';
+    //weatherMain := getJsonKeyValue('main');
+    weatherDesc := 'heavy clouds';
+    icon := '02d';
+    temp := '-20.35';
+    feels := '17.4';
+    pressure := '1024';
+    humidity := '100';
+    windSpeed := '12';
+    windAngle := '245';
+    dewpoint := '8';
+    visibility := '10000';    
+    clouds := '0';
 end;
 
 // ***************************************************** NETWORK ROUTINES
@@ -169,16 +198,22 @@ end;
 
 procedure GetWeather;
 begin
+    //FakeWeather; exit;
+    
     ioResult := TCP_Connect(OW_api);
     if isIOError then exit;
 
-    getLine:='GET /data/2.5/weather?zip=';
-    getLine:=Concat(getLine,zip);
-    getLine:=Concat(getLine,',');
-    getLine:=Concat(getLine,country_code);
+    getLine:='GET /data/2.5/onecall?lat=';
+    getLine:=Concat(getLine,latitude);
+    getLine:=Concat(getLine,'&lon=');
+    getLine:=Concat(getLine,longitude);
     getLine:=Concat(getLine,'&units=');
     if units = metric then getLine:=Concat(getLine,'metric')
     else getLine:=Concat(getLine,'imperial');
+    getLine:=Concat(getLine,'&exclude=minutely,hourly,alerts');
+    getLine:=Concat(getLine,',daily');
+//    getLine:=Concat(getLine,',current');
+    
     getLine:=Concat(getLine,'&appid=2e8616654c548c26bc1c86b1615ef7f1 HTTP/1.1'#13#10'Host: api.openweathermap.org'#13#10'Cache-Control: no-cache;'#13#10#13#10);
     TCP_SendString(getLine);
 
@@ -237,23 +272,18 @@ procedure WriteTime(date: TDateTime);
 var hour:byte;
 begin
     hour := date.hour;
-    if units = imperial then hour := hour24to12(hour);
+    if units = imperial then hour := hour24to12(hour) 
+    else Write(' ');
     if hour < 10 then Write(0);
     Write(hour,':');
     if date.minute < 10 then Write(0);
     Write(date.minute);
     if units = imperial then begin
-        if date.hour > 12 then Write(' am')
-            else Write(' pm');
+        if date.hour > 12 then Write('am')
+            else Write('pm');
     end;
     //if date.second < 10 then Write(0);
     //Write(date.second);
-end;
-
-procedure WriteTempUnit;
-begin
-    if units = metric then Write('^C');
-    if units = imperial then Write('^F');
 end;
 
 procedure WriteSpeedUnit;
@@ -404,8 +434,8 @@ procedure ShowLocation;
 begin
     Writeln('Your IP: ',ip);
     Writeln('Location: ',country,', ',city);
-    Writeln('latitude: ',lat);
-    Writeln('longitude: ',long);
+    Writeln('latitude: ',latitude);
+    Writeln('longitude: ',longitude);
     Writeln('zip-code: ',zip);
     Write('units: ');
     if units = metric then Writeln('metric')
@@ -415,6 +445,16 @@ begin
     WaitForOverride;
 end;
 
+procedure ClearGfx;
+begin
+    FillByte(pointer(VRAM),VRAM_SIZE,0);
+end;
+
+procedure ShowHeader;
+begin
+    PutCString(getLine, GFX + 42 * 40,1);
+end;
+
 procedure ShowWeather;
 begin
     Pause;
@@ -422,7 +462,7 @@ begin
     SetIntVec(iDLI, @dli);
     nmien := $c0; 
     chbas := Hi(FONT);
-    Fillbyte(pointer(VRAM),2240,0);
+    ClearGfx;
 
     if palnts = 0 then colors := colorsNTSC
         else colors := colorsPAL;
@@ -435,57 +475,105 @@ begin
     // set backgrond color based on icon type
     if icon[3] = 'd' then color4 := (colors[3] and $f0) or $0a;
 
+    cityColor := 6;
+    textColor := 15;
+    menuColor := color4;
+
+
     // top of screen - GFX part
     savmsc := VRAM;
+
+    Str(curDate.day, getLine);
+    getLine := Concat(getLine,monthNames[curDate.month-1]);
+    Str(curDate.year, tmp);
+    getLine := Concat(getLine, tmp);
+    getLine := Concat(getLine,', ');
+    getLine := Concat(getLine,dowNames[curDate.dow]);
     
-    getLine := Concat(city, ', ');
-    getLine := Concat(getLine, country_code);
-    PutCString(getLine, savmsc + 0 * 40,3);
+    PutCString(getLine, savmsc + 0 * 40,1);
    
-    DrawIcon(GetIconPtr(icon),savmsc+8*40);
+    DrawIcon(GetIconPtr(icon),savmsc+17*40);
 
     if Length(temp)>5 then setLength(temp,5); 
     if units = metric then getLine := Concat(temp, '^C') 
         else getLine := Concat(temp, '^F');
 
-    PrintTemperature(getLine, savmsc+10*40 + 12);
+    PrintTemperature(getLine, savmsc+17*40 + 12);
     
     i := 40 - Length(pressure) shl 1;
-    PutString(pressure, savmsc + 9 * 40 + i,3);
+    PutString(pressure, savmsc + 16 * 40 + i,3);
     getLine := 'hPa';
-    PutString(getLine, savmsc + 17 * 40 + 34,3);
+    PutString(getLine, savmsc + 24 * 40 + 34,3);
     
-    PutCString(weatherDesc, savmsc + 36 * 40,1);
-    PutCString(weatherDesc, savmsc + 35 * 40,3);
+    PutCString(weatherDesc, savmsc + 42 * 40,1);
+    PutCString(weatherDesc, savmsc + 41 * 40,3);
     
     // bottom - TXT part
-    savmsc := VRAM + 44 * 40;
-    lmargin := 12;
-    Gotoxy(1,1);
+    savmsc := VRAM + 50 * 40;
+    lmargin := 1;
     
-    Writeln;    
-    Write('Feels like: ', feels);
-    WriteTempUnit;
-    Writeln;
+    getLine := Concat(city, ', ');
+    getLine := Concat(getLine, country_code);
+    if Length(getLine)>40 then setLength(getLine,5); 
+    Gotoxy(21-(Length(getLine) shr 1),1);
+    Writeln(getLine);
+    
+
+    Gotoxy(2,3);
     Write('Wind: ',windSpeed,' ');
     WriteSpeedUnit;
     Write(' ');
     Write(windDir[getDirName(StrToInt(windAngle))]);
-    Writeln;
-    Writeln;
-    Writeln('Humidity: ', humidity, '%');
-    Writeln('Clouds:   ', clouds, '%');
-    Writeln;
+
+
+    Gotoxy(24,6);
+    Write('Humidity: ', humidity, '%');
+    Gotoxy(24,7);
+    Write('Clouds:   ', clouds, '%');
+
+    Gotoxy(24,3);
     Write('Sunrise: ');
     WriteTime(sunriseDate);
-    Writeln;
+    Gotoxy(24,4);
     Write('Sunset:  ');
     WriteTime(sunsetDate);
-    lmargin:=1;
-    Writeln;
-    Writeln;
-    Writeln;    
-    Write('F'*+'orecast   '+'U'*+'nits    '+'R'*+'efresh     '+'Q'*+'uit');
+
+    Gotoxy(2,6);
+    Write('Dew point:  ',dewPoint);
+    if units = metric then Write('^C') else Write('^F');
+
+    Gotoxy(2,7);
+    unixtime := StrToInt(visibility);
+    Write('Visibility: ');
+    if unixtime > 1000 then begin
+        unixtime := unixtime div 1000;
+        write(unixtime,'km')
+    end else Write(unixtime,'m');
+
+    Gotoxy(2,4);
+    Write('Feels like: ', feels);
+    if units = metric then Write('^C') else Write('^F');
+
+
+
+    Gotoxy(2,9);
+    Write('F'*+'orecast    '+'U'*+'nits     '+'R'*+'efresh   '+'Q'*+'uit');
+end;
+
+procedure ShowMenu;
+begin
+    menuDelay := 150;
+    menuColor := cityColor;
+    
+end;
+
+
+procedure AnimateMenu;
+begin
+    if menuDelay>0 then begin
+        dec(menuDelay);
+        if menuDelay = 0 then menuColor := color4;
+    end;
 end;
 
 
@@ -501,6 +589,7 @@ begin
     if isIOError then exit;
     TCP_AttachIRQ;
 
+
     Writeln('Checking your ip and location');
     GetLocation;
     ShowLocation;
@@ -508,29 +597,36 @@ begin
     Writeln;
     Writeln('Connecting to openweathermap.org');
     Writeln('Checking weather for your location');
-    CursorOff;
 
+    CursorOff;
     GetWeather;
     ShowWeather;
+    ShowMenu;
 
     repeat
 
         repeat 
             pause;
             atract := 1;
+            AnimateMenu;
         until KeyPressed;
 
         k := readkey;
         case k of
             'r', 'R': begin 
+                getLine := 'Reloading Weather';
+                ShowHeader;
                 GetWeather;
                 ShowWeather;
             end;
             'u', 'U': begin
+                getLine := 'Changing Units';
+                ShowHeader;
                 if units = metric then units := imperial else units := metric;
                 GetWeather;
                 ShowWeather;
             end;
+            else ShowMenu;
         end;
 
     until (k = 'q') or (k = 'Q');
