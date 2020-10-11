@@ -1,14 +1,13 @@
 program weather;
 {$librarypath '../blibs/'}
 // get your blibs here: https://gitlab.com/bocianu/blibs
-uses atari, sysutils, crt, b_crt, fn_tcp, fn_sio, graph;
+uses atari, sysutils, crt, b_crt, fn_tcp, fn_sio;
 {$r resources.rc}
+
+{ $define fake}
 
 const
 {$i const.inc}
-JSON_OPEN = #123;
-JSON_CLOSE = #125;
-
 {$i datetime.inc}
 
 type Tunits = (metric, imperial);
@@ -63,6 +62,9 @@ var IP_api: PChar = 'N:TCP://api.ipstack.com:80';
     colorsPAL:  array [0..3] of byte = ( $96, $ec, $0f, $80 );
     colors: array [0..0] of byte;
     cityColor, textColor, menuColor: byte;
+
+    scrWidth: byte;
+    descDir, descOffset, descScroll, descHSC: byte;
     
     olddli:pointer;
   
@@ -153,17 +155,17 @@ begin
 end;
 
 procedure FakeWeather;
-var date: array [0..7] of byte = (3,$ee,6,9,21,37,03,0);
+var date: array [0..7] of byte = ($de,7,6,9,21,37,03,0);
 begin
     UnixToDate(unixtime, curDate);
     Move(date, curDate,8);
     Move(date, sunriseDate,8);
     Move(date, sunsetDate,8);
     
-    city := 'Einsturzende Neubauten';
-    country_code := 'DE';
+    city := 'Przedmiescie Szczebrzeszynskie';
+    country_code := 'PL';
     //weatherMain := getJsonKeyValue('main');
-    weatherDesc := 'heavy clouds';
+    weatherDesc := 'heavy shower rain and drizzle';
     icon := '02d';
     temp := '-20.35';
     feels := '17.4';
@@ -198,7 +200,10 @@ end;
 
 procedure GetWeather;
 begin
-    //FakeWeather; exit;
+
+    {$ifdef fake}
+    FakeWeather; exit;
+    {$endif}
     
     ioResult := TCP_Connect(OW_api);
     if isIOError then exit;
@@ -329,7 +334,7 @@ var row,bit,ic:byte;
     src,dc:word;
 begin
     row := 0;
-    src := FONT + (Atascii2Antic(ord(c)) shl 3);
+    src := FONT + (ord(c) shl 3);
     repeat 
         dc := 0;
         bit := 0;
@@ -343,17 +348,19 @@ begin
         poke(dest,peek(dest) or hi(dc));
         poke(dest+1,peek(dest+1) or lo(dc));
         inc(src);
-        inc(dest,40);
+        inc(dest,scrWidth);
         inc(row);
     until row = 8;
 end;
 
 procedure PutString(var s:string;dest: word;color:byte);
 var i:byte;
+    line:string[40];
 begin
     i:=1;
-    while (i<=Length(s)) do begin
-        putChar(s[i],dest,color);
+    line:=Atascii2Antic(s);
+    while (i<=Length(line)) do begin
+        PutChar(line[i],dest,color);
         inc(dest,2);
         inc(i);
     end;
@@ -363,10 +370,7 @@ procedure PutCString(var s:string;dest: word;color:byte);
 var l:byte;
 begin
     l:=Length(s);
-    if l>20 then SetLength(s,20)
-    else begin
-        dest := dest + (20 - l)
-    end;
+    if l<20 then dest := dest + (20 - l);
     PutString(s,dest,color);
 end;
 
@@ -452,12 +456,45 @@ end;
 
 procedure ShowHeader;
 begin
-    PutCString(getLine, GFX + 42 * 40,1);
+    ClearGfx;
+    PutCString(getLine, VRAM + 42 * 40,1);
+end;
+
+procedure ShowDescription;
+begin
+    scrWidth := 80;
+    PutCString(weatherDesc, VRAM + 43 * 40 + 2,1);
+    PutCString(weatherDesc, VRAM + 41 * 40 + 2,3); 
+    scrWidth := 40;
+end;
+
+procedure ScrollInit;
+begin
+    descDir := 0;
+    descOffset := 0;
+    descScroll := BOUNCE_DELAY;
+    descHSC := 8;
+    hscrol := descHSC;
+end;
+
+procedure ScrollDescription;
+var row:byte;
+    dlptr:byte;
+    vptr:word;
+begin
+    dlptr := 51;
+    vptr := VRAM + (41*40) + descOffset;
+    for row:=0 to 8 do begin
+        dpoke(DLIST + dlptr, vptr);
+        inc(dlptr,3);
+        inc(vptr,80);
+    end;
 end;
 
 procedure ShowWeather;
 begin
     Pause;
+    scrWidth := 40;
     SDLSTL := DLIST;
     SetIntVec(iDLI, @dli);
     nmien := $c0; 
@@ -505,16 +542,16 @@ begin
     getLine := 'hPa';
     PutString(getLine, savmsc + 24 * 40 + 34,3);
     
-    PutCString(weatherDesc, savmsc + 42 * 40,1);
-    PutCString(weatherDesc, savmsc + 41 * 40,3);
+    ScrollInit;
+    ShowDescription;
     
     // bottom - TXT part
-    savmsc := VRAM + 50 * 40;
+    savmsc := VRAM + (41 * 40) + (9 * 80);
     lmargin := 1;
     
     getLine := Concat(city, ', ');
     getLine := Concat(getLine, country_code);
-    if Length(getLine)>40 then setLength(getLine,5); 
+    if Length(getLine)>40 then setLength(getLine,40); 
     Gotoxy(21-(Length(getLine) shr 1),1);
     Writeln(getLine);
     
@@ -567,12 +604,44 @@ begin
     
 end;
 
-
-procedure AnimateMenu;
+procedure Animate;
 begin
+    // menu
     if menuDelay>0 then begin
         dec(menuDelay);
         if menuDelay = 0 then menuColor := color4;
+    end;
+    
+    //description
+    if Length(weatherDesc) > 20 then begin
+        dec(descScroll);
+        if descScroll = 0 then begin
+            descScroll := SCROLL_SPEED;
+            if descDir = 0 then begin 
+                dec(descHSC);
+                if descHSC <= 4 then begin
+                    inc(descOffset);
+                    ScrollDescription;;
+                    descHsc := 8;
+                end;
+                if descOffset = (Length(weatherDesc) shl 1) - 40 then begin
+                    descDir := 1;
+                    descScroll := BOUNCE_DELAY;
+                end;
+            end else begin
+                inc (descHSC);
+                if descHSC >= 9 then  begin
+                    dec(descOffset);
+                    ScrollDescription;;
+                    descHSC := 5;
+                end;
+                if (descOffset = 0) and (descHSC = 8) then begin
+                    descDir := 0;
+                    descScroll := BOUNCE_DELAY;
+                end;
+            end;
+            hscrol := descHsc;
+        end;
     end;
 end;
 
@@ -583,7 +652,12 @@ end;
 
 begin
 
+    portb := $ff;
+    hscrol := 8;
     GetIntVec(iDLI, olddli);
+
+{$ifndef fake}
+
     Writeln('Connecting to ipstack.com');
     ioResult := TCP_Connect(IP_api);
     if isIOError then exit;
@@ -598,6 +672,8 @@ begin
     Writeln('Connecting to openweathermap.org');
     Writeln('Checking weather for your location');
 
+{$endif}
+
     CursorOff;
     GetWeather;
     ShowWeather;
@@ -608,7 +684,8 @@ begin
         repeat 
             pause;
             atract := 1;
-            AnimateMenu;
+            Animate;
+            
         until KeyPressed;
 
         k := readkey;

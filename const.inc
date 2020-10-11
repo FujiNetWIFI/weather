@@ -4,15 +4,19 @@
 // ;*** I like to keep memory locations at top of this file
 //
 
-GFX = $6000; //  
-DLIST = $6F00;
+GFX = $7000; //  
+DLIST = $7F00;
 
-FONT = $7000;
-VRAM = $7400;  
-VRAM_SIZE = $938;
+FONT = $8000;
+VRAM = $8400;  
+VRAM_SIZE = (41 * 40) + (9 * 80) + (9 * 40);
 
-UTFTABLE192 = $7E00;
-JSON_BUFFER = $8000;
+UTFTABLE192 = $8E00;
+JSON_BUFFER = $A000;
 
 
+
+
+BOUNCE_DELAY = 150;
+SCROLL_SPEED = 2;
 

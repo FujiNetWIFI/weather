@@ -1,3 +1,6 @@
+const
+JSON_OPEN = #123;
+JSON_CLOSE = #125;
 
 // ***************************************************** JSON PARSER ROUTINES
 
