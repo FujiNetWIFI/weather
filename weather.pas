@@ -457,7 +457,9 @@ end;
 procedure ShowHeader;
 begin
     ClearGfx;
-    PutCString(getLine, VRAM + 42 * 40,1);
+    scrWidth:=80;
+    PutCString(getLine, VRAM + 43    * 40 + 2,1);
+    scrWidth:=40;
 end;
 
 procedure ShowDescription;
@@ -494,6 +496,7 @@ end;
 procedure ShowWeather;
 begin
     Pause;
+    sdmctl := sdmctl and %11111100;
     scrWidth := 40;
     SDLSTL := DLIST;
     SetIntVec(iDLI, @dli);
@@ -595,6 +598,8 @@ begin
 
     Gotoxy(2,9);
     Write('F'*+'orecast    '+'U'*+'nits     '+'R'*+'efresh   '+'Q'*+'uit');
+
+    sdmctl := sdmctl or %10;
 end;
 
 procedure ShowMenu;
