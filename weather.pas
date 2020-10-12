@@ -73,13 +73,24 @@ var IP_api: PChar = 'N:TCP://api.ipstack.com:80';
     scrWidth: byte;
     descDir, descOffset, descScroll, descHSC: byte;
     
-    olddli:pointer;
   
 {$i interrupts.inc}    
 {$i json.inc}    
   
     
 // ***************************************************** HELPERS    
+    
+procedure MergeStr(var s1:string;s2:string);
+var l1,l2:byte;
+begin
+    l1 := Length(s1);
+    l2 := Length(s2);
+    s1[0] := char(l1 + l2);
+    while l2>0 do begin
+        s1[l1+l2] := s2[l2];
+        dec(l2);
+    end;
+end;
     
 function isCCImperial(var cc:TString):boolean;
 var i:byte;
@@ -210,22 +221,22 @@ begin
         
     if askFor = CALL_CHECKCITY then begin
         s:='GET /data/2.5/weather?q=';
-        s:=Concat(s,city);
+        MergeStr(s,city);
     end;
     if (askFor = CALL_WEATHER) or (askFor = CALL_FORECAST) then begin
         s:='GET /data/2.5/onecall?lat=';
-        s:=Concat(s,latitude);
-        s:=Concat(s,'&lon=');
-        s:=Concat(s,longitude);
-        s:=Concat(s,'&exclude=minutely,hourly,alerts');
-        if askFor = CALL_WEATHER then s:=Concat(s,',daily');
-        if askFor = CALL_FORECAST then s:=Concat(s,',current');
+        MergeStr(s,latitude);
+        MergeStr(s,'&lon=');
+        MergeStr(s,longitude);
+        MergeStr(s,'&exclude=minutely,hourly,alerts');
+        if askFor = CALL_WEATHER then MergeStr(s,',daily');
+        if askFor = CALL_FORECAST then MergeStr(s,',current');
     end;
-    s:=Concat(s,'&units=');
-    if units = metric then s:=Concat(s,'metric')
-    else s:=Concat(s,'imperial');
+    MergeStr(s,'&units=');
+    if units = metric then MergeStr(s,'metric')
+    else MergeStr(s,'imperial');
     
-    s:=Concat(s,'&appid=2e8616654c548c26bc1c86b1615ef7f1 HTTP/1.1'#13#10'Host: api.openweathermap.org'#13#10'Cache-Control: no-cache;'#13#10#13#10);
+    MergeStr(s,'&appid=2e8616654c548c26bc1c86b1615ef7f1 HTTP/1.1'#13#10'Host: api.openweathermap.org'#13#10'Cache-Control: no-cache;'#13#10#13#10);
 end;
 
 procedure HTTPGet(var api,header:string);
@@ -531,15 +542,6 @@ begin
     scrWidth := 40;
 end;
 
-procedure ScrollInit;
-begin
-    descDir := 0;
-    descOffset := 0;
-    descScroll := BOUNCE_DELAY;
-    descHSC := 8;
-    hscrol := descHSC;
-end;
-
 procedure ScrollDescription;
 var row:byte;
     dlptr:byte;
@@ -553,6 +555,18 @@ begin
         inc(vptr,80);
     end;
 end;
+
+
+procedure ScrollInit;
+begin
+    descDir := 0;
+    descOffset := 0;
+    descScroll := BOUNCE_DELAY;
+    descHSC := 8;
+    hscrol := descHSC;
+    ScrollDescription;
+end;
+
 
 procedure ShowWeather;
 begin
@@ -585,19 +599,21 @@ begin
     savmsc := VRAM;
 
     Str(curDate.day, getLine);
-    getLine := Concat(getLine,monthNames[curDate.month-1]);
+    MergeStr(getLine,monthNames[curDate.month-1]);
     Str(curDate.year, tmp);
-    getLine := Concat(getLine, tmp);
-    getLine := Concat(getLine,', ');
-    getLine := Concat(getLine,dowNames[curDate.dow]);
+    MergeStr(getLine, tmp);
+    MergeStr(getLine,', ');
+    MergeStr(getLine,dowNames[curDate.dow]);
     
     PutCString(getLine, savmsc + 0 * 40,1);
    
     DrawIcon(GetIconPtr(icon),savmsc+17*40);
-
-    if Length(temp)>5 then setLength(temp,5); 
-    if units = metric then getLine := Concat(temp, '^C') 
-        else getLine := Concat(temp, '^F');
+    
+    getLine[0] := #0;
+    MergeStr(getLine, temp);
+    if Length(getLine)>5 then setLength(getLine,5); 
+    if units = metric then MergeStr(getLine, '^C') 
+        else MergeStr(getLine, '^F');
 
     PrintTemperature(getLine, savmsc+17*40 + 12);
     
@@ -611,9 +627,11 @@ begin
     
     // bottom - TXT part
     savmsc := VRAM + (41 * 40) + (9 * 80);
-    
-    getLine := Concat(city, ', ');
-    getLine := Concat(getLine, country_code);
+ 
+    getLine[0] := #0;
+    MergeStr(getLine, city);    
+    MergeStr(getLine, ', ');
+    MergeStr(getLine, country_code);
     if Length(getLine)>40 then setLength(getLine,40); 
     Gotoxy(21-(Length(getLine) shr 1),1);
     Writeln(getLine);
@@ -666,10 +684,25 @@ end;
 
 procedure ShowWelcomeMsg;
 begin
+
+    sdmctl := sdmctl and %11111100;
+    savmsc := VRAMTXT;
+    ClearGfx;
+    Pause;
+    SDLSTL := DLIST2;
+    nmien := $40; 
+
+    color1 := 10;
+    color2 := $94;
+    color4 := 0;
+
     move(pointer($e000),pointer(VRAM),$400);
     move(pointer(LOGO_CHARSET),pointer(VRAM+$200),$100);
-    TextMode(0);
     chbas := Hi(VRAM); // set custom charset
+
+    sdmctl := sdmctl or %10;
+
+
     move(logo[0*13],pointer(savmsc+40*1+2),13);
     move(logo[1*13],pointer(savmsc+40*2+2),13);
     move(logo[2*13],pointer(savmsc+40*3+2),13);
@@ -739,10 +772,18 @@ end;
 // **********************************************************************
 
 begin
-
+(*
+    getLine := 'test1';
+    MergeStr(getLine, 'test2');
+    Writeln(getLine);
+    Writeln(byte(getLine[0]));
+    MergeStr(getLine, getLine);
+    Writeln(getLine);
+    Writeln(byte(getLine[0]));
+    readkey;
+*)
     portb := $ff;
     hscrol := 8;
-    GetIntVec(iDLI, olddli);
 
 {$ifndef fake}
 

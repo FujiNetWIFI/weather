@@ -6,9 +6,11 @@
 
 GFX = $7000; //  
 DLIST = $7F00;
+DLIST2 = DLIST + $80;
 
 FONT = $8000;
 VRAM = $8400;  
+VRAMTXT = VRAM + $400;
 VRAM_SIZE = (41 * 40) + (9 * 80) + (9 * 40); // AA0
 
 UTFTABLE192 = $9400;

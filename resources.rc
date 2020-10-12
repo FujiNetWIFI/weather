@@ -26,8 +26,9 @@
 ; remove # to uncomment and use examples below:
 
 
-DLIST rcasm 'dlist.asm'
+DLIST rcasm dlist.asm
+DLIST2 rcasm dlist2.asm
 GFX rcdata weather.gfx
 UTFTABLE192 rcdata utf2atascii.bin
 FONT rcdata weather.fnt
-LOGO_CHARSET rcdata 'fnfont.fnt'
+LOGO_CHARSET rcdata fnfont.fnt
