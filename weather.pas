@@ -24,14 +24,15 @@ var IP_api: string[15] = 'api.ipstack.com';
     units:TUnits;
     imperialCCodes: array [0..7] of string[2] = ('US', 'GB', 'IN', 'IE', 'CA', 'AU', 'HK', 'NZ');
     windDir: array [0..7] of string[2] = ('N ', 'NE', 'E ', 'SE', 'S ', 'SW', 'W ', 'NW');
-    monthNames: array [0..11] of string[5] = (' Jan ', ' Feb ', ' Mar ', ' Apr ', ' May ', ' Jun ', ' Jul ', ' Aug ', ' Sep ',' Oct ',' Nov ',' Dec ');
+    monthNames: array [0..11] of string[5] = (' Jan ', ' Feb ', ' Mar ', ' Apr ', ' May ', ' Jun' , ' Jul ', ' Aug ', ' Sep ',' Oct ',' Nov ',' Dec ');
     dowNames: array [0..6] of string[3] = ('Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat');
 
-    ip,country,country_code,longitude,latitude,zip:Tstring;
     city:string[40];
-
-    tmp, weatherDesc, icon, temp, feels, pressure, humidity: TString;
-    windSpeed, windAngle, clouds, dewpoint, visibility: TString;
+    tmp, weatherDesc: TString;
+    longitude, latitude, ip: string[20];
+    pressure, temp, feels, windSpeed, dewpoint, visibility: string[10];
+    country_code, icon, humidity, clouds, windAngle: string[3];
+    
     descDir, descOffset, descScroll, descHSC: byte;
 
     curDate, sunriseDate, sunsetDate: TDateTime;
@@ -138,11 +139,9 @@ begin
     ip := getJsonKeyValue('ip');
     city := getJsonKeyValue('city');
     utfNormalize(city);
-    country := getJsonKeyValue('country_name');
     country_code := getJsonKeyValue('country_code');
     latitude := getJsonKeyValue('latitude');
     longitude := getJsonKeyValue('longitude');
-    zip := getJsonKeyValue('zip');
     units := metric;
     if isCCImperial(country_code) then units := imperial;
 end;
@@ -268,26 +267,26 @@ begin
     FakeWeather; exit;
     {$endif}
    
-    ComposeGetHeader(getLine,  CALL_WEATHER);
+    ComposeGetHeader(getLine, CALL_WEATHER);
     HTTPGet(OW_api, getLine);
     ParseWeather;
 end;
 
 procedure GetCityLocation;
 begin
-    ComposeGetHeader(getLine,CALL_CHECKCITY);
+    ComposeGetHeader(getLine, CALL_CHECKCITY);
     HTTPGet(OW_api, getLine);
     getLine[0] := #0;
     city[0] := #0;
     country_code[0] := #0;
-    if findKeyPos('name')<>0 then begin
+    if findKeyPos('name') <> 0 then begin
         city := getJsonKeyValue('name');
         UtfNormalize(city);
         country_code := getJsonKeyValue('country');
         latitude := getJsonKeyValue('lat');
         longitude := getJsonKeyValue('lon');
     end;
-    if findKeyPos('message')<>0 then begin
+    if findKeyPos('message') <> 0 then begin
         getLine := getJsonKeyValue('message');
         country_code := getJsonKeyValue('cod');
     end;
@@ -296,7 +295,7 @@ end;
 procedure GetIPLocation;
 begin
     getLine:='GET /check?access_key=9ba846d99b9d24288378762533e00318&';
-    MergeStr(getLine, 'fields=ip,country_code,country_name,city,latitude,longitude');
+    MergeStr(getLine, 'fields=ip,country_code,city,latitude,longitude');
     AppendRequestHeaders(getLine, IP_api);
     HTTPGet(IP_api, getLine);
     ParseLocation;
@@ -597,11 +596,11 @@ begin
 
     // date
     Str(curDate.day, getLine);
-    MergeStr(getLine,monthNames[curDate.month - 1]);
+    MergeStr(getLine, monthNames[curDate.month - 1]);
     Str(curDate.year, tmp);
     MergeStr(getLine, tmp);
-    MergeStr(getLine,', ');
-    MergeStr(getLine,dowNames[curDate.dow]);
+    MergeStr(getLine, ', ');
+    MergeStr(getLine, dowNames[curDate.dow]);
     PutCString(getLine, savmsc + 0 * 40, 1);
    
     // icon
