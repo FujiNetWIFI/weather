@@ -184,12 +184,19 @@ begin
                 else s[swp] := '_';
             inc(srp,6);
             inc(swp);
-        end else begin
-            s[swp] := s[srp];
-            inc(srp);
-            inc(swp);
-        end;
-        
+        end 
+        else 
+            if byte(s[srp]) > $c1 then begin
+                hex := word(((byte(s[srp]) - $c2) shl 6)) + word(s[srp+1]);
+                if (hex > 191) and (hex<577) then s[swp] := char(utfMap192[hex-192])
+                    else s[swp] := '_';
+                inc(srp,2);
+                inc(swp);
+            end else begin
+                s[swp] := s[srp];
+                inc(srp);
+                inc(swp);
+            end;
     until srp > slen;
     SetLength(s,swp-1);
 end;

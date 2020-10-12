@@ -58,6 +58,13 @@ var IP_api: PChar = 'N:TCP://api.ipstack.com:80';
         3 * 10 + 1 * (40 * 24) + GFX, 
         0 * 10 + 2 * (40 * 24) + GFX
     );
+    logo: array [0..13*4-1] of byte = (
+    $00, $00, $00, $00, $00, $5a, $5b, $5c, $00, $00, $00, $00, $00, 
+    $40, $41, $42, $43, $44, $54, $55, $56, $4a, $4b, $4c, $4d, $4e, 
+    $45, $46, $47, $48, $49, $57, $58, $59, $4f, $50, $51, $52, $53, 
+    $00, $00, $00, $00, $00, $00, $5d, $5e, $5f, $00, $00, $00, $00
+    );
+
     colorsNTSC: array [0..3] of byte = ( $a6, $2c, $0f, $90 );
     colorsPAL:  array [0..3] of byte = ( $96, $ec, $0f, $80 );
     colors: array [0..0] of byte;
@@ -198,72 +205,81 @@ begin
     end;
 end;
 
+procedure ComposeGetHeader(var s:string; askFor:byte);
+begin
+        
+    if askFor = CALL_CHECKCITY then begin
+        s:='GET /data/2.5/weather?q=';
+        s:=Concat(s,city);
+    end;
+    if (askFor = CALL_WEATHER) or (askFor = CALL_FORECAST) then begin
+        s:='GET /data/2.5/onecall?lat=';
+        s:=Concat(s,latitude);
+        s:=Concat(s,'&lon=');
+        s:=Concat(s,longitude);
+        s:=Concat(s,'&exclude=minutely,hourly,alerts');
+        if askFor = CALL_WEATHER then s:=Concat(s,',daily');
+        if askFor = CALL_FORECAST then s:=Concat(s,',current');
+    end;
+    s:=Concat(s,'&units=');
+    if units = metric then s:=Concat(s,'metric')
+    else s:=Concat(s,'imperial');
+    
+    s:=Concat(s,'&appid=2e8616654c548c26bc1c86b1615ef7f1 HTTP/1.1'#13#10'Host: api.openweathermap.org'#13#10'Cache-Control: no-cache;'#13#10#13#10);
+end;
+
+procedure HTTPGet(var api,header:string);
+begin
+    ioResult := TCP_Connect(api);
+    if isIOError then exit;
+    TCP_AttachIRQ;
+    TCP_SendString(header);
+    ioResult := WaitAndParseRequest;
+    if isIOError then exit;
+    TCP_DetachIRQ;
+    TCP_Close;    
+end;
+
 procedure GetWeather;
 begin
-
     {$ifdef fake}
     FakeWeather; exit;
     {$endif}
-    
-    ioResult := TCP_Connect(OW_api);
-    if isIOError then exit;
-
-    getLine:='GET /data/2.5/onecall?lat=';
-    getLine:=Concat(getLine,latitude);
-    getLine:=Concat(getLine,'&lon=');
-    getLine:=Concat(getLine,longitude);
-    getLine:=Concat(getLine,'&units=');
-    if units = metric then getLine:=Concat(getLine,'metric')
-    else getLine:=Concat(getLine,'imperial');
-    getLine:=Concat(getLine,'&exclude=minutely,hourly,alerts');
-    getLine:=Concat(getLine,',daily');
-//    getLine:=Concat(getLine,',current');
-    
-    getLine:=Concat(getLine,'&appid=2e8616654c548c26bc1c86b1615ef7f1 HTTP/1.1'#13#10'Host: api.openweathermap.org'#13#10'Cache-Control: no-cache;'#13#10#13#10);
-    TCP_SendString(getLine);
-
-    ioResult := WaitAndParseRequest;
-    if isIOError then exit;
-    TCP_Close;    
+   
+    ComposeGetHeader(getLine,  CALL_WEATHER);
+    HTTPGet(OW_api, getLine);
     ParseWeather;
 end;
 
-procedure GetLocation;
+procedure GetCityLocation;
+begin
+    ComposeGetHeader(getLine,CALL_CHECKCITY);
+    HTTPGet(OW_api, getLine);
+    getLine[0] := #0;
+    city[0] := #0;
+    country_code[0] := #0;
+    if findKeyPos('name')<>0 then begin
+        city := getJsonKeyValue('name');
+        UtfNormalize(city);
+        country_code := getJsonKeyValue('country');
+        latitude := getJsonKeyValue('lat');
+        longitude := getJsonKeyValue('lon');
+    end;
+    if findKeyPos('message')<>0 then begin
+        getLine := getJsonKeyValue('message');
+        country_code := getJsonKeyValue('cod');
+    end;
+end;
+
+procedure GetIPLocation;
 begin
     getLine:='GET /check?access_key=9ba846d99b9d24288378762533e00318&fields=ip,country_code,country_name,city,latitude,longitude,zip HTTP/1.1'#13#10'Host: api.ipstack.com'#13#10'Cache-Control: no-cache;'#13#10#13#10;
-    TCP_SendString(getLine);
-   
-    ioResult := WaitAndParseRequest;
-    if isIOError then exit;
-    TCP_Close;
+    HTTPGet(IP_api, getLine);
     ParseLocation;
+    Writeln('Your IP: ',ip);
 end;
 
 // ***************************************************** GUI ROUTINES
-
-procedure WaitForOverride();
-var timeout:byte;
-    c:char;
-begin
-    CursorOff;
-    timeout := 150;
-    c:=#0;
-    Write('3...');
-    repeat 
-        pause;
-        if keypressed then c := Readkey;
-        dec(timeout);
-        if timeout = 100 then begin
-            DelLine; Write('2...');
-        end;
-        if timeout = 50 then begin
-            DelLine; Write('1...');
-        end;
-    until (c <> #0) or (timeout = 0);
-    DelLine;
-    if c = #32 then Writeln('Not yet implemented. Blame author.');
-    CursorOn;
-end;
 
 procedure WriteDate(date: TDateTime);
 begin
@@ -436,17 +452,62 @@ end;
 
 procedure ShowLocation;
 begin
-    Writeln('Your IP: ',ip);
-    Writeln('Location: ',country,', ',city);
+    Writeln('Location: ',city,', ',country_code);
     Writeln('latitude: ',latitude);
     Writeln('longitude: ',longitude);
-    Writeln('zip-code: ',zip);
+    //Writeln('zip-code: ',zip);
     Write('units: ');
     if units = metric then Writeln('metric')
     else Writeln('imperial');
     Writeln;
-    Writeln('Press '+'SPACE'*+' to override location');
-    WaitForOverride;
+end;
+
+procedure PromptLocation;
+var foundLocation:boolean;
+begin
+    foundLocation := false;
+    CursorOn;
+    repeat 
+        Writeln('Enter desired city,country');
+        Writeln('example: PARIS,FR');
+        Readln(city);
+        GetCityLocation;
+        if Length(city) <> 0 then begin
+            foundLocation := true; 
+            showLocation;
+        end else begin
+            Writeln('Request Error : ',country_code);
+            Writeln(getLine);
+            Writeln('Try Again!');
+            Writeln;
+        end;
+    until foundLocation;
+    CursorOff;
+end;
+
+procedure WaitForOverride;
+var timeout:byte;
+    over:boolean;
+begin
+    CursorOff;
+    timeout := 150;
+    over:=false;
+    Writeln('Press '+'SELECT'*+' to override location');
+    Write('3...');
+    repeat 
+        pause;
+        if CRT_SelectPressed then over:=true;
+        dec(timeout);
+        if timeout = 100 then begin
+            DelLine; Write('2...');
+        end;
+        if timeout = 50 then begin
+            DelLine; Write('1...');
+        end;
+    until over or (timeout = 0);
+    DelLine;
+    if over then PromptLocation;
+    CursorOn;
 end;
 
 procedure ClearGfx;
@@ -550,21 +611,18 @@ begin
     
     // bottom - TXT part
     savmsc := VRAM + (41 * 40) + (9 * 80);
-    lmargin := 1;
     
     getLine := Concat(city, ', ');
     getLine := Concat(getLine, country_code);
     if Length(getLine)>40 then setLength(getLine,40); 
     Gotoxy(21-(Length(getLine) shr 1),1);
     Writeln(getLine);
-    
 
     Gotoxy(2,3);
     Write('Wind: ',windSpeed,' ');
     WriteSpeedUnit;
     Write(' ');
     Write(windDir[getDirName(StrToInt(windAngle))]);
-
 
     Gotoxy(24,6);
     Write('Humidity: ', humidity, '%');
@@ -594,8 +652,6 @@ begin
     Write('Feels like: ', feels);
     if units = metric then Write('^C') else Write('^F');
 
-
-
     Gotoxy(2,9);
     Write('F'*+'orecast    '+'U'*+'nits     '+'R'*+'efresh   '+'Q'*+'uit');
 
@@ -606,7 +662,24 @@ procedure ShowMenu;
 begin
     menuDelay := 150;
     menuColor := cityColor;
-    
+end;
+
+procedure ShowWelcomeMsg;
+begin
+    move(pointer($e000),pointer(VRAM),$400);
+    move(pointer(LOGO_CHARSET),pointer(VRAM+$200),$100);
+    TextMode(0);
+    chbas := Hi(VRAM); // set custom charset
+    move(logo[0*13],pointer(savmsc+40*1+2),13);
+    move(logo[1*13],pointer(savmsc+40*2+2),13);
+    move(logo[2*13],pointer(savmsc+40*3+2),13);
+    move(logo[3*13],pointer(savmsc+40*4+2),13);
+    Gotoxy(17,3);
+    Write('openWeather.org Client');
+    Gotoxy(17,4);
+    Write('by bocianu@gmail.com');
+    Gotoxy(2,6);
+    Writeln;
 end;
 
 procedure Animate;
@@ -650,6 +723,16 @@ begin
     end;
 end;
 
+procedure ChangeLocation;
+begin
+    Pause;
+    nmien := $40; 
+    ShowWelcomeMsg;
+    PromptLocation;
+    GetWeather;
+    ShowWeather;
+    ShowMenu;
+end;
 
 // **********************************************************************
 // *******************************************************************************  MAIN
@@ -663,15 +746,13 @@ begin
 
 {$ifndef fake}
 
+    ShowWelcomeMsg;
     Writeln('Connecting to ipstack.com');
-    ioResult := TCP_Connect(IP_api);
-    if isIOError then exit;
-    TCP_AttachIRQ;
-
-
     Writeln('Checking your ip and location');
-    GetLocation;
+
+    GetIPLocation;
     ShowLocation;
+    WaitForOverride;
 
     Writeln;
     Writeln('Connecting to openweathermap.org');
@@ -690,6 +771,7 @@ begin
             pause;
             atract := 1;
             Animate;
+            if CRT_SelectPressed then ChangeLocation;
             
         until KeyPressed;
 

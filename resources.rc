@@ -30,3 +30,4 @@ DLIST rcasm 'dlist.asm'
 GFX rcdata weather.gfx
 UTFTABLE192 rcdata utf2atascii.bin
 FONT rcdata weather.fnt
+LOGO_CHARSET rcdata 'fnfont.fnt'
