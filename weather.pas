@@ -12,29 +12,35 @@ const
 
 type Tunits = (metric, imperial);
 
-var IP_api: PChar = 'N:TCP://api.ipstack.com:80';
-    OW_api: PChar = 'N:TCP://api.openweathermap.org:80';
+var IP_api: string[15] = 'api.ipstack.com';
+    OW_api: string[22] = 'api.openweathermap.org';
     getLine: string;    
     ioResult: byte;
     responseBuffer: array [0..0] of byte absolute JSON_BUFFER;
+    utfMap192: array [0..0] of byte absolute UTFTABLE192;
+
     jsonStart, jsonEnd, jsonPtr: word;
 
-    ip,country,country_code,longitude,latitude,zip:Tstring;
-    city:string[80];
-    ccode_imperial: array [0..7] of string[2] = ('US', 'GB', 'IN', 'IE', 'CA', 'AU', 'HK', 'NZ');
-    utfMap192: array [0..0] of byte absolute UTFTABLE192;
+    units:TUnits;
+    imperialCCodes: array [0..7] of string[2] = ('US', 'GB', 'IN', 'IE', 'CA', 'AU', 'HK', 'NZ');
     windDir: array [0..7] of string[2] = ('N ', 'NE', 'E ', 'SE', 'S ', 'SW', 'W ', 'NW');
     monthNames: array [0..11] of string[5] = (' Jan ', ' Feb ', ' Mar ', ' Apr ', ' May ', ' Jun ', ' Jul ', ' Aug ', ' Sep ',' Oct ',' Nov ',' Dec ');
     dowNames: array [0..6] of string[3] = ('Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat');
-    tmp, weatherDesc, icon, temp, feels, pressure, humidity, windSpeed, windAngle, clouds, dewpoint, visibility:TString;
-    unixTime:cardinal;
-    timezone:integer;
-    curDate, sunriseDate, sunsetDate : TdateTime;
 
-    i,menuDelay: byte;
+    ip,country,country_code,longitude,latitude,zip:Tstring;
+    city:string[40];
+
+    tmp, weatherDesc, icon, temp, feels, pressure, humidity: TString;
+    windSpeed, windAngle, clouds, dewpoint, visibility: TString;
+    descDir, descOffset, descScroll, descHSC: byte;
+
+    curDate, sunriseDate, sunsetDate: TDateTime;
+    unixTime: cardinal;
+    timezone: integer;
+
+    scrWidth: byte;
+    i, menuDelay: byte;
     k: char;
-    
-    units:TUnits;
     
     iconsD: array [0..8] of word = (
         0 * 10 + 0 * (40 * 24) + GFX, 
@@ -58,6 +64,7 @@ var IP_api: PChar = 'N:TCP://api.ipstack.com:80';
         3 * 10 + 1 * (40 * 24) + GFX, 
         0 * 10 + 2 * (40 * 24) + GFX
     );
+
     logo: array [0..13*4-1] of byte = (
     $00, $00, $00, $00, $00, $5a, $5b, $5c, $00, $00, $00, $00, $00, 
     $40, $41, $42, $43, $44, $54, $55, $56, $4a, $4b, $4c, $4d, $4e, 
@@ -69,10 +76,6 @@ var IP_api: PChar = 'N:TCP://api.ipstack.com:80';
     colorsPAL:  array [0..3] of byte = ( $96, $ec, $0f, $80 );
     colors: array [0..0] of byte;
     cityColor, textColor, menuColor: byte;
-
-    scrWidth: byte;
-    descDir, descOffset, descScroll, descHSC: byte;
-    
   
 {$i interrupts.inc}    
 {$i json.inc}    
@@ -80,7 +83,7 @@ var IP_api: PChar = 'N:TCP://api.ipstack.com:80';
     
 // ***************************************************** HELPERS    
     
-procedure MergeStr(var s1:string;s2:string);
+procedure MergeStr(var s1:string;s2:string[80]);
 var l1,l2:byte;
 begin
     l1 := Length(s1);
@@ -98,14 +101,14 @@ var i:byte;
 begin
     result := false;
     for i := 0 to 7 do begin
-        ic := ccode_imperial[i];
+        ic := imperialCCodes[i];
         if (ic[1] = cc[1]) and (ic[2] = cc[2]) then exit(true);
     end;
 end;
 
 function GetDirName(angle:word):byte;
 begin
-    result:= Round(angle / 45.0) mod 8;
+    result := Round(angle / 45.0) mod 8;
 end;
 
 function GetIconPtr(var icon:Tstring): word;
@@ -114,18 +117,18 @@ begin
     iconNum := (ord(icon[1])-48)*10 + (ord(icon[2])-48);
     iconId := 0;
     case iconNum of
-        1: iconId := 0;
-        2: iconId := 1;
-        3: iconId := 2;
-        4: iconId := 3;
-        9: iconId := 4;
+         1: iconId := 0;
+         2: iconId := 1;
+         3: iconId := 2;
+         4: iconId := 3;
+         9: iconId := 4;
         10: iconId := 5;
         11: iconId := 6;
         13: iconId := 7;
         50: iconId := 8;
     end;
-    if icon[3] = 'd' then result := iconsD[iconId]
-    else result := iconsN[iconId];
+    result := iconsD[iconId];
+    if icon[3] = 'n' then result := iconsN[iconId];
 end;
 
 // ********************************************************* DATA PARSERS
@@ -144,18 +147,14 @@ begin
     if isCCImperial(country_code) then units := imperial;
 end;
 
-
 procedure ParseWeather;
 begin
     timezone := StrToInt(getJsonKeyValue('timezone_offset'));
-    unixTime := StrToInt(getJsonKeyValue('dt'));
-    unixtime := unixtime + timezone;
+    unixTime := StrToInt(getJsonKeyValue('dt')) + timezone;
     UnixToDate(unixtime, curDate);
-    unixTime := StrToInt(getJsonKeyValue('sunrise'));
-    unixtime := unixtime + timezone;
+    unixTime := StrToInt(getJsonKeyValue('sunrise')) + timezone;
     UnixToDate(unixtime, sunriseDate);
-    unixTime := StrToInt(getJsonKeyValue('sunset'));
-    unixtime := unixtime + timezone;
+    unixTime := StrToInt(getJsonKeyValue('sunset')) + timezone;
     UnixToDate(unixtime, sunsetDate);
     
     //weatherMain := getJsonKeyValue('main');
@@ -172,6 +171,7 @@ begin
     clouds := getJsonKeyValue('clouds');    
 end;
 
+{$ifdef fake}
 procedure FakeWeather;
 var date: array [0..7] of byte = ($de,7,6,9,21,37,03,0);
 begin
@@ -195,6 +195,7 @@ begin
     visibility := '10000';    
     clouds := '0';
 end;
+{$endif}
 
 // ***************************************************** NETWORK ROUTINES
 
@@ -216,15 +217,22 @@ begin
     end;
 end;
 
+procedure AppendRequestHeaders(var s, api:string);
+begin
+    MergeStr(s, ' HTTP/1.1'#13#10'Host: ');
+    MergeStr(s, api);
+    MergeStr(s, #13#10'Cache-Control: no-cache;'#13#10#13#10);
+end;
+
 procedure ComposeGetHeader(var s:string; askFor:byte);
 begin
-        
+    s:='GET /data/2.5/';
     if askFor = CALL_CHECKCITY then begin
-        s:='GET /data/2.5/weather?q=';
+        MergeStr(s,'weather?q=');
         MergeStr(s,city);
     end;
     if (askFor = CALL_WEATHER) or (askFor = CALL_FORECAST) then begin
-        s:='GET /data/2.5/onecall?lat=';
+        MergeStr(s,'onecall?lat=');
         MergeStr(s,latitude);
         MergeStr(s,'&lon=');
         MergeStr(s,longitude);
@@ -235,13 +243,16 @@ begin
     MergeStr(s,'&units=');
     if units = metric then MergeStr(s,'metric')
     else MergeStr(s,'imperial');
-    
-    MergeStr(s,'&appid=2e8616654c548c26bc1c86b1615ef7f1 HTTP/1.1'#13#10'Host: api.openweathermap.org'#13#10'Cache-Control: no-cache;'#13#10#13#10);
+    MergeStr(s,'&appid=2e8616654c548c26bc1c86b1615ef7f1');
+    AppendRequestHeaders(s, OW_api);
 end;
 
-procedure HTTPGet(var api,header:string);
+procedure HTTPGet(var api, header:string);
 begin
-    ioResult := TCP_Connect(api);
+    tmp:='N:TCP://';
+    MergeStr(tmp, api);
+    MergeStr(tmp,':80');
+    ioResult := TCP_Connect(tmp);
     if isIOError then exit;
     TCP_AttachIRQ;
     TCP_SendString(header);
@@ -284,21 +295,15 @@ end;
 
 procedure GetIPLocation;
 begin
-    getLine:='GET /check?access_key=9ba846d99b9d24288378762533e00318&fields=ip,country_code,country_name,city,latitude,longitude,zip HTTP/1.1'#13#10'Host: api.ipstack.com'#13#10'Cache-Control: no-cache;'#13#10#13#10;
+    getLine:='GET /check?access_key=9ba846d99b9d24288378762533e00318&';
+    MergeStr(getLine, 'fields=ip,country_code,country_name,city,latitude,longitude');
+    AppendRequestHeaders(getLine, IP_api);
     HTTPGet(IP_api, getLine);
     ParseLocation;
     Writeln('Your IP: ',ip);
 end;
 
 // ***************************************************** GUI ROUTINES
-
-procedure WriteDate(date: TDateTime);
-begin
-    if date.day < 10 then Write(0);
-    Write(date.day,'-');
-    if date.month < 10 then Write(0);
-    Write(date.month,'-',date.year);
-end;
 
 procedure WriteTime(date: TDateTime);
 var hour:byte;
@@ -324,22 +329,6 @@ begin
     if units = imperial then Write('mph');
 end;
 
-procedure DrawIcon(src,dest: word);
-var row,col:byte;
-begin
-    row:=0;
-    repeat 
-        col:=0;
-        repeat
-            poke(dest+col,peek(src+col));
-            inc(col)
-        until col = 10;
-        inc(src,40);
-        inc(dest,40);
-        inc(row);
-    until row = 24;
-end;
-
 procedure Stamp(src,dest:word;w,h:byte);
 var row,col:byte;
 begin
@@ -354,6 +343,11 @@ begin
         inc(dest,40);
         inc(row);
     until row = h;
+end;
+
+procedure DrawIcon(src,dest: word);
+begin
+    Stamp(src,dest,10,24);
 end;
 
 function PutChar(c:char; dest: word; color: byte):byte;
@@ -402,52 +396,50 @@ begin
 end;
 
 function PutSymbol(c:char; dest: word):byte;
-var x,w,h:byte;
+var x,h:byte;
     src,off:word;
 begin
-    result:=0;
-    w := 3;
+    result := 3;
     h := 19;
     src:= GFX + 74 * 40;
     case c of
         '0'..'9': begin 
-            x:=(ord(c)-48)*3;
-            if c='1' then begin
-                dec(w);
+            x := (ord(c) - 48) * 3;
+            if c = '1' then begin
+                dec(result);
                 inc(x);
             end;
         end;
         'F': begin
-            x:=11*3;
+            x := 11 * 3;
         end;
         'C': begin
-            x:=12*3;
+            x := 12 * 3;
         end;
         '^': begin
-            x:=10*3+1;
-            dec(w);
-            h:=5;
+            x := 10 * 3 + 1;
+            dec(result);
+            h := 5;
         end;
         '.': begin
-            x:=10*3+1;
-            dec(w);
-            h:=3;
-            off:=40*16;
-            inc(src,off);
-            inc(dest,off)
+            x := 10 * 3 + 1;
+            dec(result);
+            h := 3;
+            off := 40 * 16;
+            inc(src, off);
+            inc(dest, off)
         end;
         '-': begin
-            x:=10*3+1;
-            dec(w);
-            h:=2;
-            off:=40*8;
-            inc(src,off);
-            inc(dest,off)
+            x := 10 * 3 + 1;
+            dec(result);
+            h := 2;
+            off := 40 * 8;
+            inc(src, off);
+            inc(dest, off)
         end;
     end;
-    inc(src,x);
-    Stamp(src,dest,w,h);
-    exit(w);
+    inc(src, x);
+    Stamp(src, dest, result, h);
 end;
 
 procedure PrintTemperature(var s:string;dest: word);
@@ -498,48 +490,32 @@ end;
 
 procedure WaitForOverride;
 var timeout:byte;
-    over:boolean;
+    counter:byte;
+    change:boolean;
 begin
     CursorOff;
-    timeout := 150;
-    over:=false;
+    counter := 1;
+    timeout := 4;
+    change := false;
     Writeln('Press '+'SELECT'*+' to override location');
-    Write('3...');
     repeat 
         pause;
-        if CRT_SelectPressed then over:=true;
-        dec(timeout);
-        if timeout = 100 then begin
-            DelLine; Write('2...');
+        if CRT_SelectPressed then change := true;
+        dec(counter);
+        if counter = 0 then begin
+            dec(timeout);
+            DelLine; Write(timeout,'...');
+            counter := 50;
         end;
-        if timeout = 50 then begin
-            DelLine; Write('1...');
-        end;
-    until over or (timeout = 0);
+    until change or (timeout = 0);
     DelLine;
-    if over then PromptLocation;
+    if change then PromptLocation;
     CursorOn;
 end;
 
 procedure ClearGfx;
 begin
     FillByte(pointer(VRAM),VRAM_SIZE,0);
-end;
-
-procedure ShowHeader;
-begin
-    ClearGfx;
-    scrWidth:=80;
-    PutCString(getLine, VRAM + 43    * 40 + 2,1);
-    scrWidth:=40;
-end;
-
-procedure ShowDescription;
-begin
-    scrWidth := 80;
-    PutCString(weatherDesc, VRAM + 43 * 40 + 2,1);
-    PutCString(weatherDesc, VRAM + 41 * 40 + 2,3); 
-    scrWidth := 40;
 end;
 
 procedure ScrollDescription;
@@ -556,7 +532,6 @@ begin
     end;
 end;
 
-
 procedure ScrollInit;
 begin
     descDir := 0;
@@ -567,6 +542,29 @@ begin
     ScrollDescription;
 end;
 
+procedure ShowHeader;
+begin
+    ClearGfx;
+    ScrollInit;
+    scrWidth:=80;
+    PutCString(getLine, VRAM + 43    * 40 + 2,1);
+    scrWidth:=40;
+end;
+
+procedure ShowDescription;
+begin
+    ScrollInit;
+    scrWidth := 80;
+    PutCString(weatherDesc, VRAM + 43 * 40 + 2,1);
+    PutCString(weatherDesc, VRAM + 41 * 40 + 2,3); 
+    scrWidth := 40;
+end;
+
+procedure ShowMenu;
+begin
+    menuDelay := 150;
+    menuColor := cityColor;
+end;
 
 procedure ShowWeather;
 begin
@@ -594,48 +592,51 @@ begin
     textColor := 15;
     menuColor := color4;
 
-
     // top of screen - GFX part
     savmsc := VRAM;
 
+    // date
     Str(curDate.day, getLine);
-    MergeStr(getLine,monthNames[curDate.month-1]);
+    MergeStr(getLine,monthNames[curDate.month - 1]);
     Str(curDate.year, tmp);
     MergeStr(getLine, tmp);
     MergeStr(getLine,', ');
     MergeStr(getLine,dowNames[curDate.dow]);
-    
-    PutCString(getLine, savmsc + 0 * 40,1);
+    PutCString(getLine, savmsc + 0 * 40, 1);
    
-    DrawIcon(GetIconPtr(icon),savmsc+17*40);
+    // icon
+    DrawIcon(GetIconPtr(icon), savmsc + 17 * 40);
     
+    // temperature
     getLine[0] := #0;
     MergeStr(getLine, temp);
-    if Length(getLine)>5 then setLength(getLine,5); 
+    if Length(getLine)>5 then setLength(getLine, 5); 
     if units = metric then MergeStr(getLine, '^C') 
         else MergeStr(getLine, '^F');
-
-    PrintTemperature(getLine, savmsc+17*40 + 12);
+    PrintTemperature(getLine, savmsc + 17 * 40 + 12);
     
+    // pressure
     i := 40 - Length(pressure) shl 1;
-    PutString(pressure, savmsc + 16 * 40 + i,3);
+    PutString(pressure, savmsc + 16 * 40 + i, 3);
     getLine := 'hPa';
-    PutString(getLine, savmsc + 24 * 40 + 34,3);
+    PutString(getLine, savmsc + 24 * 40 + 34, 3);
     
-    ScrollInit;
+    // desription
     ShowDescription;
     
     // bottom - TXT part
     savmsc := VRAM + (41 * 40) + (9 * 80);
  
+    // city, country
     getLine[0] := #0;
     MergeStr(getLine, city);    
     MergeStr(getLine, ', ');
     MergeStr(getLine, country_code);
-    if Length(getLine)>40 then setLength(getLine,40); 
-    Gotoxy(21-(Length(getLine) shr 1),1);
+    if Length(getLine) > 40 then setLength(getLine, 40); 
+    Gotoxy(21-(Length(getLine) shr 1), 1);
     Writeln(getLine);
 
+    // wind
     Gotoxy(2,3);
     Write('Wind: ',windSpeed,' ');
     WriteSpeedUnit;
@@ -663,8 +664,8 @@ begin
     Write('Visibility: ');
     if unixtime > 1000 then begin
         unixtime := unixtime div 1000;
-        write(unixtime,'km')
-    end else Write(unixtime,'m');
+        write(unixtime, 'km')
+    end else Write(unixtime, 'm');
 
     Gotoxy(2,4);
     Write('Feels like: ', feels);
@@ -673,46 +674,42 @@ begin
     Gotoxy(2,9);
     Write('F'*+'orecast    '+'U'*+'nits     '+'R'*+'efresh   '+'Q'*+'uit');
 
+    ShowMenu;
     sdmctl := sdmctl or %10;
-end;
-
-procedure ShowMenu;
-begin
-    menuDelay := 150;
-    menuColor := cityColor;
 end;
 
 procedure ShowWelcomeMsg;
 begin
-
     sdmctl := sdmctl and %11111100;
-    savmsc := VRAMTXT;
     ClearGfx;
     Pause;
     SDLSTL := DLIST2;
     nmien := $40; 
+    savmsc := VRAMTXT;
 
     color1 := 10;
     color2 := $94;
     color4 := 0;
 
-    move(pointer($e000),pointer(VRAM),$400);
-    move(pointer(LOGO_CHARSET),pointer(VRAM+$200),$100);
-    chbas := Hi(VRAM); // set custom charset
+    // prepare logo charset
+    move(pointer($e000),pointer(VRAM), $400);
+    move(pointer(LOGO_CHARSET),pointer(VRAM+$200), $100);
+    chbas := Hi(VRAM); 
 
-    sdmctl := sdmctl or %10;
-
-
+    // draw logo
     move(logo[0*13],pointer(savmsc+40*1+2),13);
     move(logo[1*13],pointer(savmsc+40*2+2),13);
     move(logo[2*13],pointer(savmsc+40*3+2),13);
     move(logo[3*13],pointer(savmsc+40*4+2),13);
+    
     Gotoxy(17,3);
-    Write('openWeather.org Client');
+    Write('openWeather.org client');
     Gotoxy(17,4);
     Write('by bocianu@gmail.com');
     Gotoxy(2,6);
     Writeln;
+
+    sdmctl := sdmctl or %10;
 end;
 
 procedure Animate;
@@ -756,15 +753,25 @@ begin
     end;
 end;
 
-procedure ChangeLocation;
-begin
-    Pause;
-    nmien := $40; 
-    ShowWelcomeMsg;
-    PromptLocation;
+procedure ReloadWeather;
+begin 
     GetWeather;
     ShowWeather;
-    ShowMenu;
+end;
+
+procedure ChangeLocation;
+begin
+    ShowWelcomeMsg;
+    PromptLocation;
+    ReloadWeather;
+end;
+
+procedure ChangeUnits;
+begin
+    if units = metric then units := imperial else units := metric;
+    getLine := 'Changing Units';
+    ShowHeader;
+    ReloadWeather;
 end;
 
 // **********************************************************************
@@ -772,16 +779,6 @@ end;
 // **********************************************************************
 
 begin
-(*
-    getLine := 'test1';
-    MergeStr(getLine, 'test2');
-    Writeln(getLine);
-    Writeln(byte(getLine[0]));
-    MergeStr(getLine, getLine);
-    Writeln(getLine);
-    Writeln(byte(getLine[0]));
-    readkey;
-*)
     portb := $ff;
     hscrol := 8;
 
@@ -802,35 +799,28 @@ begin
 {$endif}
 
     CursorOff;
-    GetWeather;
-    ShowWeather;
-    ShowMenu;
+    ReloadWeather;
 
     repeat
 
-        repeat 
+        // main loop
+        repeat  
             pause;
             atract := 1;
             Animate;
             if CRT_SelectPressed then ChangeLocation;
-            
+            if CRT_OptionPressed then ChangeUnits;
         until KeyPressed;
 
+        // menu key reading
         k := readkey;
         case k of
-            'r', 'R': begin 
+            'r', 'R': begin
                 getLine := 'Reloading Weather';
                 ShowHeader;
-                GetWeather;
-                ShowWeather;
+                ReloadWeather;
             end;
-            'u', 'U': begin
-                getLine := 'Changing Units';
-                ShowHeader;
-                if units = metric then units := imperial else units := metric;
-                GetWeather;
-                ShowWeather;
-            end;
+            'u', 'U': ChangeUnits;
             else ShowMenu;
         end;
 

@@ -115,7 +115,7 @@ begin
 end;
 
 // ***************************************************** JSON HELPERS
-
+(*
 procedure EscapeJson(var s:string);
 var i: byte;
     c: char;
@@ -149,7 +149,7 @@ begin
     end;
     Writeln;
 end;
-
+*)
 function Hex2Dec(c:char):byte;
 begin
     result:=0;
