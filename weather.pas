@@ -161,6 +161,7 @@ end;
 
 
 procedure ParseWeatherCommons;
+var p:word;
 begin
     unixTime := StrToInt(GetJsonKeyValue('dt')) + timezone;
     UnixToDate(unixtime, curDate);
@@ -169,6 +170,16 @@ begin
     pressure := GetJsonKeyValue('pressure');
     humidity := GetJsonKeyValue('humidity');
     windSpeed := GetJsonKeyValue('wind_speed');
+    
+    if units = imperial then begin
+        p := StrToInt(pressure);
+        p := p * 3;
+        Str(p, pressure);
+        pressure[5]:=pressure[4];
+        pressure[4]:=pressure[3];
+        pressure[3]:='.';
+        Inc(pressure[0]);
+    end;
 end;
 
 
@@ -374,6 +385,12 @@ procedure WriteSpeedUnit;
 begin
     if units = metric then Write('m/s');
     if units = imperial then Write('mph');
+end;
+
+procedure WritePressureUnit;
+begin
+    if units = metric then Write('hPa');
+    if units = imperial then Write('"Hg');
 end;
 
 procedure Stamp(src,dest:word;w,h:byte);
@@ -658,15 +675,24 @@ begin
     // temperature
     getLine[0] := #0;
     MergeStr(getLine, temp);
-    if Length(getLine)>5 then setLength(getLine, 5); 
-    if units = metric then MergeStr(getLine, '^C') 
-        else MergeStr(getLine, '^F');
+    
+    if units = metric then begin
+        if Length(getLine)>5 then setLength(getLine, 5); 
+        if getLine[Length(getLine)] = '.' then Dec(getLine[0]);
+        MergeStr(getLine, '^C') 
+    end else begin
+        if Length(getLine)>4 then setLength(getLine, 4); 
+        if getLine[Length(getLine)] = '.' then Dec(getLine[0]);
+        MergeStr(getLine, '^F');
+    end;
     PrintTemperature(getLine, VRAM + 17 * 40 + 12);
     
     // pressure
     i := 40 - Length(pressure) shl 1;
     PutString(pressure, VRAM + 16 * 40 + i, 3);
-    getLine := 'hPa';
+    if units = metric then getLine := 'hPa'
+        else getLine := '"Hg';
+    
     PutString(getLine, VRAM + 24 * 40 + 34, 3);
     
     // desription
@@ -774,7 +800,7 @@ begin
     MergeStr(getLine, pressure);
     Gotoxy(x + o,4);
     Write(getLine);
-    Write('hPa');
+    WritePressureUnit;
     
     getLine[0] := #0;
     MergeStr(getLine, windSpeed);
