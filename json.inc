@@ -1,10 +1,14 @@
 const
-JSON_OPEN = #123;
-JSON_CLOSE = #125;
+    JSON_OPEN = #123;
+    JSON_CLOSE = #125;
+
+var
+    utfMap192: array [0..0] of byte absolute UTFTABLE192;
+    jsonRoot, jsonStart, jsonEnd, jsonPtr: word;
 
 // ***************************************************** JSON PARSER ROUTINES
 
-function getJsonStart:word;
+function GetJsonRoot:word;
 var ptr:word;
 begin
     result := $ffff;
@@ -18,9 +22,9 @@ begin
     until ptr = jsonEnd;
 end;
 
-function findKeyPos(skey:string):word;
+function FindKeyPos(skey:Tstring):word;
 var inQuotes,keyParsing,gotKey,keyMatch,foundKey:boolean;
-    key:string;
+    key:Tstring;
     level:byte;
     c: char;
 begin
@@ -44,9 +48,22 @@ begin
                         inQuotes := true;
                     end;
                 
-                ',',JSON_CLOSE,JSON_OPEN:begin
+                ',':begin
                         gotKey := false;
                         keyParsing := false;
+                    end;
+
+                JSON_OPEN:begin
+                        gotKey := false;
+                        keyParsing := false;
+                        inc(level);
+                    end;
+
+                JSON_CLOSE:begin
+                        gotKey := false;
+                        keyParsing := false;
+                        dec(level);
+                        if level = $ff then exit(0);
                     end;
                 
                 ':':begin
@@ -79,13 +96,141 @@ begin
 
 end;
 
-function getJsonKeyValue(skey:Tstring):Tstring;
+function GetElementsCount: byte;
+var inQuotes,inObject, hasContent:boolean;
+    alevel,olevel:byte;
+    c: char;
+begin
+    alevel := $ff;
+    olevel := $ff;
+    result := 0;
+    inQuotes := false;
+    inObject := false;
+    hasContent := false;
+    jsonPtr := jsonStart;
+
+    repeat
+        c := char(responseBuffer[jsonPtr]);
+        if not inQuotes then begin     // out of Quotes
+
+            case c of
+                '"':begin
+                        inQuotes := true;
+                        hasContent := true;
+                    end;
+                JSON_OPEN:begin
+                        inc(olevel);
+                        inObject := true;
+                        hasContent := true;
+                    end;
+                JSON_CLOSE:begin
+                        dec(olevel);
+                        if olevel = $ff then inObject := false;
+                    end;
+                
+                ',':begin
+                        if (alevel = 0) and (not inObject) then begin
+                            inc(result);
+                        end;
+                    end;
+
+                '[':begin
+                        if not inObject then begin
+                            inc(alevel);
+                            if alevel = 0 then hasContent := false
+                                else hasContent := true;
+                        end;
+                    end;
+
+                ']':begin
+                        if not inObject then begin
+                            dec(alevel);
+                            if alevel = $ff then begin
+                                if hasContent then inc(result);
+                                exit(result);
+                            end;
+                        end;
+                    end;
+            end;
+        end else                            // not inQuotes
+            if c = '"' then begin           // ending quote
+                inQuotes := false;
+            end;
+        
+        Inc(jsonPtr);
+    until (jsonPtr = jsonEnd);
+end;
+
+function FindIndex(i:byte):word;
+var inQuotes,inObject,found:boolean;
+    element:byte;
+    alevel,olevel:byte;
+    c: char;
+begin
+    alevel := $ff;
+    olevel := $ff;
+    element := 0;
+    found := false;
+    inQuotes := false;
+    inObject := false;
+    jsonPtr := jsonStart;
+
+    repeat
+        c := char(responseBuffer[jsonPtr]);
+        if not inQuotes then begin     // out of Quotes
+
+            case c of
+                '"':begin
+                        inQuotes := true;
+                    end;
+                JSON_OPEN:begin
+                        inc(olevel);
+                        inObject := true;
+                    end;
+                JSON_CLOSE:begin
+                        dec(olevel);
+                        if olevel = $ff then inObject := false;
+                    end;
+                
+                ',':begin
+                        if (alevel = 0) and (not inObject) then begin
+                            inc(element);
+                            if element = i then found := true;
+                        end;
+                    end;
+
+                '[':begin
+                        if not inObject then begin
+                            inc(alevel);
+                            if (alevel = 0) and (element = i) then found := true;
+                        end;
+                    end;
+
+                ']':begin
+                        if not inObject then begin
+                            dec(alevel);
+                            if alevel = $ff then exit(0);
+                        end;
+                    end;
+            end;
+        end else                            // not inQuotes
+            if c = '"' then begin           // ending quote
+                inQuotes := false;
+            end;
+        
+        Inc(jsonPtr);
+    until found or (jsonPtr = jsonEnd);
+    result := 0;
+    if found then result := jsonPtr;
+end;
+
+function GetJsonKeyValue(skey:Tstring):Tstring;
 var c: char;
     inQuotes: boolean;
 begin
     result[0] := #0;
     inQuotes := false;
-    jsonPtr := findKeyPos(skey);
+    jsonPtr := FindKeyPos(skey);
     //writeln('key at: ', jsonPtr);
     if jsonPtr <> 0 then begin
         repeat
@@ -114,8 +259,26 @@ begin
     result := '';
 end;
 
+function FollowKey(s:Tstring):word;
+begin
+    jsonPtr := FindKeyPos(s);
+    if jsonPtr <> 0 then begin
+        jsonStart := jsonPtr;
+    end;
+    result := jsonPtr;
+end;
+
+function FollowIndex(i:byte):word;
+begin
+    jsonPtr := FindIndex(i);
+    if jsonPtr <> 0 then begin
+        jsonStart := jsonPtr;
+    end;
+    result := jsonPtr;
+end;
+
 // ***************************************************** JSON HELPERS
-(*
+
 procedure EscapeJson(var s:string);
 var i: byte;
     c: char;
@@ -149,7 +312,7 @@ begin
     end;
     Writeln;
 end;
-*)
+
 function Hex2Dec(c:char):byte;
 begin
     result:=0;
@@ -167,37 +330,37 @@ begin
 end;
 
 procedure UtfNormalize(var s:string);
-var srp,swp:byte;
-    slen:byte;
+var readHead, writeHead :byte;
+    utfLen:byte;
     hex:word;
 begin
-    slen := Length(s);
-    srp := 1;
-    swp := 1;
+    utfLen := Length(s);
+    readHead := 1;
+    writeHead := 1;
     repeat
-        if (s[srp] = '\') and (s[srp+1] = 'u') then begin
-            hex := Hex2dec(s[srp+2]) shl 12;
-            hex := hex + Hex2dec(s[srp+3]) shl 8;
-            hex := hex + Hex2dec(s[srp+4]) shl 4;
-            hex := hex + Hex2dec(s[srp+5]);
-            if (hex > 191) and (hex<577) then s[swp] := char(utfMap192[hex-192])
-                else s[swp] := '_';
-            inc(srp,6);
-            inc(swp);
+        if (s[readHead] = '\') and (s[readHead + 1] = 'u') then begin  // detect and decode \uXXXX codes
+            hex := Hex2dec(s[readHead+2]) shl 12;
+            hex := hex + Hex2dec(s[readHead + 3]) shl 8;
+            hex := hex + Hex2dec(s[readHead + 4]) shl 4;
+            hex := hex + Hex2dec(s[readHead + 5]);
+            if (hex > 191) and (hex < 577) then s[writeHead] := char(utfMap192[hex - 192])
+                else s[writeHead] := '_';
+            inc(readHead,6);
+            inc(writeHead);
         end 
         else 
-            if byte(s[srp]) > $c1 then begin
-                hex := word(((byte(s[srp]) - $c2) shl 6)) + word(s[srp+1]);
-                if (hex > 191) and (hex<577) then s[swp] := char(utfMap192[hex-192])
-                    else s[swp] := '_';
-                inc(srp,2);
-                inc(swp);
+            if byte(s[readHead]) > $c1 then begin                // detect and decode inline symbols
+                hex := word(((byte(s[readHead]) - $c2) shl 6)) + word(s[readHead + 1]);
+                if (hex > 191) and (hex < 577) then s[writeHead] := char(utfMap192[hex - 192])
+                    else s[writeHead] := '_';
+                inc(readHead, 2);
+                inc(writeHead);
             end else begin
-                s[swp] := s[srp];
-                inc(srp);
-                inc(swp);
+                s[writeHead] := s[readHead];
+                inc(readHead);
+                inc(writeHead);
             end;
-    until srp > slen;
-    SetLength(s,swp-1);
+    until readHead > utfLen;
+    SetLength(s,writeHead - 1);
 end;
 

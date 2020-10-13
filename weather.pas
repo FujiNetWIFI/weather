@@ -17,9 +17,6 @@ var IP_api: string[15] = 'api.ipstack.com';
     getLine: string;    
     ioResult: byte;
     responseBuffer: array [0..0] of byte absolute JSON_BUFFER;
-    utfMap192: array [0..0] of byte absolute UTFTABLE192;
-
-    jsonStart, jsonEnd, jsonPtr: word;
 
     units:TUnits;
     imperialCCodes: array [0..7] of string[2] = ('US', 'GB', 'IN', 'IE', 'CA', 'AU', 'HK', 'NZ');
@@ -38,6 +35,8 @@ var IP_api: string[15] = 'api.ipstack.com';
     curDate, sunriseDate, sunsetDate: TDateTime;
     unixTime: cardinal;
     timezone: integer;
+
+    forecastPtrs: array [0..7] of word;
 
     scrWidth: byte;
     i, menuDelay: byte;
@@ -77,6 +76,8 @@ var IP_api: string[15] = 'api.ipstack.com';
     colorsPAL:  array [0..3] of byte = ( $96, $ec, $0f, $80 );
     colors: array [0..0] of byte;
     cityColor, textColor, menuColor: byte;
+    
+    page: byte;
   
 {$i interrupts.inc}    
 {$i json.inc}    
@@ -84,6 +85,17 @@ var IP_api: string[15] = 'api.ipstack.com';
     
 // ***************************************************** HELPERS    
     
+
+procedure ScreenOff;
+begin
+    sdmctl := sdmctl and %11111100;
+end;
+
+procedure ScreenOn;
+begin
+    sdmctl := sdmctl or %10;
+end;
+
 procedure MergeStr(var s1:string;s2:string[80]);
 var l1,l2:byte;
 begin
@@ -136,38 +148,65 @@ end;
 
 procedure ParseLocation;
 begin
-    ip := getJsonKeyValue('ip');
-    city := getJsonKeyValue('city');
+    ip := GetJsonKeyValue('ip');
+    city := GetJsonKeyValue('city');
     utfNormalize(city);
-    country_code := getJsonKeyValue('country_code');
-    latitude := getJsonKeyValue('latitude');
-    longitude := getJsonKeyValue('longitude');
+    country_code := GetJsonKeyValue('country_code');
+    latitude := GetJsonKeyValue('latitude');
+    longitude := GetJsonKeyValue('longitude');
     units := metric;
     if isCCImperial(country_code) then units := imperial;
 end;
 
+
+
+procedure ParseWeatherCommons;
+begin
+    unixTime := StrToInt(GetJsonKeyValue('dt')) + timezone;
+    UnixToDate(unixtime, curDate);
+
+    icon := GetJsonKeyValue('icon');
+    pressure := GetJsonKeyValue('pressure');
+    humidity := GetJsonKeyValue('humidity');
+    windSpeed := GetJsonKeyValue('wind_speed');
+end;
+
+
 procedure ParseWeather;
 begin
-    timezone := StrToInt(getJsonKeyValue('timezone_offset'));
-    unixTime := StrToInt(getJsonKeyValue('dt')) + timezone;
-    UnixToDate(unixtime, curDate);
-    unixTime := StrToInt(getJsonKeyValue('sunrise')) + timezone;
+    timezone := StrToInt(GetJsonKeyValue('timezone_offset'));
+
+    unixTime := StrToInt(GetJsonKeyValue('sunrise')) + timezone;
     UnixToDate(unixtime, sunriseDate);
-    unixTime := StrToInt(getJsonKeyValue('sunset')) + timezone;
+    unixTime := StrToInt(GetJsonKeyValue('sunset')) + timezone;
     UnixToDate(unixtime, sunsetDate);
+
+    ParseWeatherCommons;
     
-    //weatherMain := getJsonKeyValue('main');
-    weatherDesc := getJsonKeyValue('description');
-    icon := getJsonKeyValue('icon');
-    temp := getJsonKeyValue('temp');
-    feels := getJsonKeyValue('feels_like');
-    pressure := getJsonKeyValue('pressure');
-    humidity := getJsonKeyValue('humidity');
-    dewpoint := getJsonKeyValue('dew_point');
-    visibility := getJsonKeyValue('visibility');
-    windSpeed := getJsonKeyValue('wind_speed');
-    windAngle := getJsonKeyValue('wind_deg');
-    clouds := getJsonKeyValue('clouds');    
+    windAngle := GetJsonKeyValue('wind_deg');
+    clouds := GetJsonKeyValue('clouds');    
+    dewpoint := GetJsonKeyValue('dew_point');
+    weatherDesc := GetJsonKeyValue('description');
+    temp := GetJsonKeyValue('temp');
+    feels := GetJsonKeyValue('feels_like');
+    visibility := GetJsonKeyValue('visibility');
+end;
+
+procedure ParseForecast;
+var i:byte;
+begin
+    timezone := StrToInt(GetJsonKeyValue('timezone_offset'));
+    FollowKey('daily');
+    for i := 0 to 7 do forecastPtrs[i] := FindIndex(i);
+end;
+
+procedure ParseDay(day:byte);
+begin
+    jsonStart := forecastPtrs[day];
+    ParseWeatherCommons;
+    temp := GetJsonKeyValue('day');
+    feels := GetJsonKeyValue('night');
+    //weatherDesc := GetJsonKeyValue('pop');
 end;
 
 {$ifdef fake}
@@ -181,7 +220,7 @@ begin
     
     city := 'Przedmiescie Szczebrzeszynskie';
     country_code := 'PL';
-    //weatherMain := getJsonKeyValue('main');
+    //weatherMain := GetJsonKeyValue('main');
     weatherDesc := 'heavy shower rain and drizzle';
     icon := '02d';
     temp := '-20.35';
@@ -203,7 +242,8 @@ begin
     result := TCP_WaitForData(100);
     jsonEnd := TCP_bytesWaiting;
     FN_ReadBuffer(@responseBuffer, jsonEnd);
-    jsonStart := getJsonStart;
+    jsonRoot := GetJsonRoot;
+    jsonStart := jsonRoot;
 end;
 
 function isIOError:boolean;
@@ -272,6 +312,14 @@ begin
     ParseWeather;
 end;
 
+procedure GetForecast;
+begin
+    ComposeGetHeader(getLine, CALL_FORECAST);
+    HTTPGet(OW_api, getLine);
+    ParseForecast;
+end;
+
+
 procedure GetCityLocation;
 begin
     ComposeGetHeader(getLine, CALL_CHECKCITY);
@@ -280,15 +328,15 @@ begin
     city[0] := #0;
     country_code[0] := #0;
     if findKeyPos('name') <> 0 then begin
-        city := getJsonKeyValue('name');
+        city := GetJsonKeyValue('name');
         UtfNormalize(city);
-        country_code := getJsonKeyValue('country');
-        latitude := getJsonKeyValue('lat');
-        longitude := getJsonKeyValue('lon');
+        country_code := GetJsonKeyValue('country');
+        latitude := GetJsonKeyValue('lat');
+        longitude := GetJsonKeyValue('lon');
     end;
     if findKeyPos('message') <> 0 then begin
-        getLine := getJsonKeyValue('message');
-        country_code := getJsonKeyValue('cod');
+        getLine := GetJsonKeyValue('message');
+        tmp := GetJsonKeyValue('cod');
     end;
 end;
 
@@ -386,11 +434,11 @@ begin
     end;
 end;
 
-procedure PutCString(var s:string;dest: word;color:byte);
+procedure PutCString(var s:string;dest: word;color:byte;w:byte);
 var l:byte;
 begin
     l:=Length(s);
-    if l<20 then dest := dest + (20 - l);
+    if l < w then dest := dest + (w - l);
     PutString(s,dest,color);
 end;
 
@@ -470,7 +518,7 @@ begin
     foundLocation := false;
     CursorOn;
     repeat 
-        Writeln('Enter desired city,country');
+        Writeln('Search for city,country');
         Writeln('example: PARIS,FR');
         Readln(city);
         GetCityLocation;
@@ -478,7 +526,7 @@ begin
             foundLocation := true; 
             showLocation;
         end else begin
-            Writeln('Request Error : ',country_code);
+            Writeln('Request Error : ',tmp);
             Writeln(getLine);
             Writeln('Try Again!');
             Writeln;
@@ -546,7 +594,7 @@ begin
     ClearGfx;
     ScrollInit;
     scrWidth:=80;
-    PutCString(getLine, VRAM + 43    * 40 + 2,1);
+    PutCString(getLine, VRAM + 43 * 40 + 2,1,20);
     scrWidth:=40;
 end;
 
@@ -554,8 +602,8 @@ procedure ShowDescription;
 begin
     ScrollInit;
     scrWidth := 80;
-    PutCString(weatherDesc, VRAM + 43 * 40 + 2,1);
-    PutCString(weatherDesc, VRAM + 41 * 40 + 2,3); 
+    PutCString(weatherDesc, VRAM + 43 * 40 + 2,1,20);
+    PutCString(weatherDesc, VRAM + 41 * 40 + 2,3,20); 
     scrWidth := 40;
 end;
 
@@ -565,10 +613,9 @@ begin
     menuColor := cityColor;
 end;
 
-procedure ShowWeather;
+procedure InitGfx;
 begin
     Pause;
-    sdmctl := sdmctl and %11111100;
     scrWidth := 40;
     SDLSTL := DLIST;
     SetIntVec(iDLI, @dli);
@@ -584,15 +631,17 @@ begin
     color2 := colors[2];
     color4 := (colors[3] and $f0);
 
-    // set backgrond color based on icon type
-    if icon[3] = 'd' then color4 := (colors[3] and $f0) or $0a;
-
     cityColor := 6;
     textColor := 15;
     menuColor := color4;
+end;
 
-    // top of screen - GFX part
-    savmsc := VRAM;
+procedure ShowWeather;
+begin
+    ScreenOff;
+    InitGfx;
+    // set backgrond color based on icon type
+    if icon[3] = 'd' then color4 := (colors[3] and $f0) or $0a;
 
     // date
     Str(curDate.day, getLine);
@@ -601,10 +650,10 @@ begin
     MergeStr(getLine, tmp);
     MergeStr(getLine, ', ');
     MergeStr(getLine, dowNames[curDate.dow]);
-    PutCString(getLine, savmsc + 0 * 40, 1);
+    PutCString(getLine, VRAM + 0 * 40, 1,20);
    
     // icon
-    DrawIcon(GetIconPtr(icon), savmsc + 17 * 40);
+    DrawIcon(GetIconPtr(icon), VRAM + 17 * 40);
     
     // temperature
     getLine[0] := #0;
@@ -612,13 +661,13 @@ begin
     if Length(getLine)>5 then setLength(getLine, 5); 
     if units = metric then MergeStr(getLine, '^C') 
         else MergeStr(getLine, '^F');
-    PrintTemperature(getLine, savmsc + 17 * 40 + 12);
+    PrintTemperature(getLine, VRAM + 17 * 40 + 12);
     
     // pressure
     i := 40 - Length(pressure) shl 1;
-    PutString(pressure, savmsc + 16 * 40 + i, 3);
+    PutString(pressure, VRAM + 16 * 40 + i, 3);
     getLine := 'hPa';
-    PutString(getLine, savmsc + 24 * 40 + 34, 3);
+    PutString(getLine, VRAM + 24 * 40 + 34, 3);
     
     // desription
     ShowDescription;
@@ -674,12 +723,103 @@ begin
     Write('F'*+'orecast    '+'U'*+'nits     '+'R'*+'efresh   '+'Q'*+'uit');
 
     ShowMenu;
-    sdmctl := sdmctl or %10;
+    ScreenOn;
+    page := PAGE_WEATHER;
+end;
+
+procedure ShowDayofForecast(column:byte);
+var x:byte;
+    o:byte;
+begin
+    x := column * 10;
+    Str(curDate.day, getLine);
+    PutCString(getLine, VRAM + 0 * 40 + x, 3, 5);
+    getLine[0] := #0;
+    MergeStr(getLine, monthNames[curDate.month - 1]);
+    PutString(getLine, VRAM + 8 * 40 + x, 1);
+
+    // icon
+    DrawIcon(GetIconPtr(icon), VRAM + 17 * 40 + x);
+    
+    scrWidth := 80;
+    getLine[0] := #0;
+    MergeStr(getLine, dowNames[curDate.dow]);
+    PutString(getLine, VRAM + 40 * 41 + x + 4, 1);
+    scrWidth := 40;
+
+    savmsc := VRAM + (41 * 40) + (9 * 80);
+
+    //ptr := VRAM + (41 * 40) + (9 * 80);
+    //Poke(ptr + x, GetDirName(StrToInt(windAngle))+$40);
+
+    o := 2;
+
+    getLine[0] := #0;
+    MergeStr(getLine, feels);
+    if Length(getLine)>5 then setLength(getLine, 5); 
+    if units = metric then MergeStr(getLine, '^C') 
+        else MergeStr(getLine, '^F');
+    Gotoxy(x + o,1);
+    Write(getLine);
+
+    getLine[0] := #0;
+    MergeStr(getLine, temp);
+    if Length(getLine)>5 then setLength(getLine, 5); 
+    if units = metric then MergeStr(getLine, '^C') 
+        else MergeStr(getLine, '^F');
+    Gotoxy(x + o,2);
+    Write(getLine);
+
+    getLine[0] := #0;
+    MergeStr(getLine, pressure);
+    Gotoxy(x + o,4);
+    Write(getLine);
+    Write('hPa');
+    
+    getLine[0] := #0;
+    MergeStr(getLine, windSpeed);
+    Gotoxy(x + o,6);
+    Write(getLine);
+    WriteSpeedUnit;
+end;
+
+procedure ShowForecast(pageNum:byte);
+var day, column:byte;
+    pages: array[0..1] of byte = ( PAGE_FORECAST0, PAGE_FORECAST1);
+begin
+    ScreenOff;
+    InitGfx;
+    ScrollInit;
+
+    color0 := colors[0] - 4;
+    color4 := (colors[3] and $f0) or $06;
+    cityColor := 2;
+
+    column := 0;
+    day := (pageNum shl 2);
+
+    repeat 
+        if forecastPtrs[day]<>0 then begin
+            ParseDay(day);
+            ShowDayofForecast(column);
+        end;
+        inc(day);
+        inc(column);
+    until column = 4;
+
+    savmsc:= VRAM + (41 * 40) + (9 * 80);
+
+    Gotoxy(2,9);
+    Write('N'*+'ext      '+'B'*+'ack                '+'Q'*+'uit');
+
+    ShowMenu;
+    ScreenOn;
+    page := pages[pageNum];
 end;
 
 procedure ShowWelcomeMsg;
 begin
-    sdmctl := sdmctl and %11111100;
+    ScreenOff;
     ClearGfx;
     Pause;
     SDLSTL := DLIST2;
@@ -708,7 +848,7 @@ begin
     Gotoxy(2,6);
     Writeln;
 
-    sdmctl := sdmctl or %10;
+    ScreenOn;
 end;
 
 procedure Animate;
@@ -720,7 +860,7 @@ begin
     end;
     
     //description
-    if Length(weatherDesc) > 20 then begin
+    if (Length(weatherDesc) > 20) and (page = PAGE_WEATHER) then begin
         dec(descScroll);
         if descScroll = 0 then begin
             descScroll := SCROLL_SPEED;
@@ -799,7 +939,7 @@ begin
 
     CursorOff;
     ReloadWeather;
-
+    
     repeat
 
         // main loop
@@ -813,16 +953,38 @@ begin
 
         // menu key reading
         k := readkey;
-        case k of
-            'r', 'R': begin
-                getLine := 'Reloading Weather';
-                ShowHeader;
-                ReloadWeather;
+        if page = PAGE_WEATHER then         // weather page
+            case k of
+                'r', 'R': begin
+                    getLine := 'Reloading Weather';
+                    ShowHeader;
+                    ReloadWeather;
+                end;
+                'u', 'U': ChangeUnits;
+                'f', 'F': begin
+                    getLine := 'Checking Forecast';
+                    ShowHeader;
+                    GetForecast;
+                    ShowForecast(0);
+                end;
+                else ShowMenu;
+            end
+        else                               // forecast page
+            case k of
+                'n', 'N': begin
+                    case page of
+                        0: ShowForecast(1);
+                        1: ShowForecast(0);
+                    end;
+                end;
+                'b', 'B': begin
+                    getLine := 'Reloading Weather';
+                    ShowHeader;
+                    ReloadWeather;
+                end;                
+                else ShowMenu;
             end;
-            'u', 'U': ChangeUnits;
-            else ShowMenu;
-        end;
-
+        
     until (k = 'q') or (k = 'Q');
 
     TCP_DetachIRQ;
