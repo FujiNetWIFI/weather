@@ -1,0 +1,59 @@
+image: ubuntu
+
+variables:
+  MADS_SRC_FILE: "https://github.com/tebe6502/Mad-Assembler/archive/master.zip"
+  MP_SRC_FILE: "https://github.com/tebe6502/Mad-Pascal/archive/master.zip"
+  BLIBS_FILE: "https://gitlab.com/bocianu/blibs/-/archive/master/blibs-master.zip"
+  SRC_NAME: "weather.pas"
+  XEX_NAME: "weather.xex"
+
+before_script:
+  # install all needed tools
+  - apt-get update -y
+  - apt-get install p7zip-full fp-compiler wget git make g++ -y
+  # download and compile Mad-Pascal 
+  - wget $MP_SRC_FILE
+  - 7z x -y master.zip
+  - rm master.zip
+  - mv Mad-Pascal-master mp
+  - cd mp
+  - fpc -Mdelphi -v -O3 mp.pas
+  # and MAD-Assembler
+  - wget $MADS_SRC_FILE
+  - 7z x -y master.zip 
+  - fpc -Mdelphi -v Mad-Assembler-master/mads.pas
+  - mv Mad-Assembler-master/mads .
+  # set permissions and leave
+  - chmod +x ./mads ./mp
+  - cd ..
+  # and blibs
+  - wget $BLIBS_FILE
+  - 7z x -y blibs-master.zip 
+  - cp blibs-master/*.pas .
+
+pages: 
+  script:
+  # build atari binary
+  - mp/mp $SRC_NAME
+  - mp/mads "${SRC_NAME%.*}".a65 -x -i:mp/base -o:$XEX_NAME
+  - export CUR_DATE=$(date +"%m-%d-%Y %H:%M")
+  # publish binary and update index file
+  - >
+    if [ ! -d "public" ]; then
+      mkdir public
+      wget -O public/index.html https://gitlab.com/bocianu/bdt/-/raw/master/default.html
+    fi
+  - cp $XEX_NAME public
+  - >
+    if [ -f "public/index.html" ]; then
+      sed -i "s/###FILE###/$XEX_NAME/g" public/index.html
+      sed -i "s/###TITLE###/$CI_PROJECT_TITLE/g" public/index.html
+      sed -i "s,###REPO###,$CI_PROJECT_URL,g" public/index.html
+      sed -i "s/###DATE###/$CUR_DATE/g" public/index.html
+      sed -i "s/###SIZE###/$(stat --format %s public/$XEX_NAME)/g" public/index.html
+    fi
+  artifacts:
+    paths:
+    - public
+  only:
+  - master
