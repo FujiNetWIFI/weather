@@ -34,14 +34,18 @@ var IP_api: string[15] = 'api.ipstack.com';
     descDir, descOffset, descScroll, descHSC: byte;
 
     curDate, sunriseDate, sunsetDate: TDateTime;
-    refreshConter, unixTime: cardinal;
+    refreshCounter, unixTime: cardinal;
     timezone: integer;
     
     forecastPtrs: array [0..7] of word;
 
     scrWidth: byte;
     i, menuDelay: byte;
+    statusDelay: word;
+    timeShown: boolean;
+    clockCount: word;
     k: char;
+    page: byte;
     
     iconsD: array [0..8] of word = (
         0 * 10 + 0 * (40 * 24) + GFX, 
@@ -75,10 +79,10 @@ var IP_api: string[15] = 'api.ipstack.com';
 
     colorsNTSC: array [0..3] of byte = ( $a6, $2c, $0f, $90 );
     colorsPAL:  array [0..3] of byte = ( $96, $ec, $0f, $80 );
+    framesPerMinute: word;
+    fps: byte;
     colors: array [0..0] of byte;
     cityColor, textColor, menuColor: byte;
-    
-    page: byte;
   
 {$i interrupts.inc}    
 {$i json.inc}    
@@ -199,6 +203,7 @@ begin
     UnixToDate(unixtime, sunsetDate);
 
     ParseWeatherCommons;
+    clockCount := CurDate.second * fps;
     
     GetJsonKeyValue('clouds', clouds );    
     GetJsonKeyValue('dew_point', dewpoint );
@@ -356,8 +361,8 @@ begin
     if date.minute < 10 then Write(0);
     Write(date.minute);
     if units = imperial then begin
-        if date.hour > 12 then Write('am')
-            else Write('pm');
+        if date.hour > 12 then Write('pm')
+            else Write('am');
     end;
     //if date.second < 10 then Write(0);
     //Write(date.second);
@@ -578,6 +583,15 @@ begin
     end;
 end;
 
+procedure SetDliJMP(p:byte);
+var addr:byte;
+    dlptr:byte;
+begin
+    dlptr := 51 + 27;
+    addr := peek(DLIST + dlptr + 2 + p);
+    poke(DLIST + dlptr, addr);
+end;
+
 procedure ScrollInit;
 begin
     descDir := 0;
@@ -608,8 +622,15 @@ end;
 
 procedure ShowMenu;
 begin
-    menuDelay := 150;
+    menuDelay := MENU_TIME;
+    statusDelay := 0;
+    timeShown := false;
     menuColor := cityColor;
+    Gotoxy(2,9);
+    if page = PAGE_WEATHER then 
+        Write('F'*+'orecast    '+'U'*+'nits     '+'R'*+'efresh   '+'Q'*+'uit   ')
+    else 
+        Write('N'*+'ext      '+'B'*+'ack                '+'Q'*+'uit    .');    
 end;
 
 procedure InitGfx;
@@ -617,13 +638,20 @@ begin
     Pause;
     scrWidth := 40;
     SDLSTL := DLIST;
+    if page = PAGE_WEATHER then SetDliJMP(0) else SetDliJMP(1);
     SetIntVec(iDLI, @dli);
     nmien := $c0; 
     chbas := Hi(FONT);
     ClearGfx;
 
-    if palnts = 0 then colors := colorsNTSC
-        else colors := colorsPAL;
+    if palnts = 0 then begin
+        colors := colorsNTSC;
+        fps := 60;
+    end else begin
+        colors := colorsPAL;
+        fps := 50;
+    end;
+    framesPerMinute := fps * 60;
 
     color0 := colors[0];
     color1 := colors[1];
@@ -635,8 +663,18 @@ begin
     menuColor := color4;
 end;
 
+procedure MergeCityWithCC;
+begin
+    getLine[0] := #0;
+    MergeStr(getLine, city);    
+    MergeStr(getLine, ', ');
+    MergeStr(getLine, country_code);
+    if Length(getLine) > 40 then setLength(getLine, 40); 
+end;
+
 procedure ShowWeather;
 begin
+    page := PAGE_WEATHER;
     ScreenOff;
     InitGfx;
     // set backgrond color based on icon type
@@ -684,11 +722,7 @@ begin
     savmsc := VRAM + (41 * 40) + (9 * 80);
  
     // city, country
-    getLine[0] := #0;
-    MergeStr(getLine, city);    
-    MergeStr(getLine, ', ');
-    MergeStr(getLine, country_code);
-    if Length(getLine) > 40 then setLength(getLine, 40); 
+    MergeCityWithCC;
     Gotoxy(21-(Length(getLine) shr 1), 1);
     Writeln(getLine);
 
@@ -726,13 +760,9 @@ begin
     Gotoxy(2,4);
     Write('Feels like: ', feels);
     if units = metric then Write('^C') else Write('^F');
-
-    Gotoxy(2,9);
-    Write('F'*+'orecast    '+'U'*+'nits     '+'R'*+'efresh   '+'Q'*+'uit');
-
+    
     ShowMenu;
     ScreenOn;
-    page := PAGE_WEATHER;
 end;
 
 procedure ShowDayofForecast(column:byte);
@@ -758,10 +788,7 @@ begin
 
     savmsc := VRAM + (41 * 40) + (9 * 80);
 
-    //ptr := VRAM + (41 * 40) + (9 * 80);
-    //Poke(ptr + x, GetDirName(StrToInt(windAngle))+$40);
-
-    o := 2;
+    o := 2; // left margin
 
     getLine[0] := #0;
     MergeStr(getLine, feels);
@@ -802,12 +829,11 @@ begin
             Gotoxy(x + o,8);
             Write(snow,'mm');
         end 
-        else 
-            if Length(rain) > 0 then begin
-                Write(#$A' ',prob,'%');
-                Gotoxy(x + o,8);
-                Write(rain,'mm');
-            end;
+        else if Length(rain) > 0 then begin
+            Write(#$A' ',prob,'%');
+            Gotoxy(x + o,8);
+            Write(rain,'mm');
+        end;
     end;
 end;
 
@@ -815,6 +841,7 @@ procedure ShowForecastPage(pageNum:byte);
 var day, column:byte;
     pages: array[0..1] of byte = ( PAGE_FORECAST0, PAGE_FORECAST1);
 begin
+    page := pages[pageNum];
     ScreenOff;
     InitGfx;
     ScrollInit;
@@ -837,12 +864,8 @@ begin
 
     savmsc:= VRAM + (41 * 40) + (9 * 80);
 
-    Gotoxy(2,9);
-    Write('N'*+'ext      '+'B'*+'ack                '+'Q'*+'uit');
-
     ShowMenu;
     ScreenOn;
-    page := pages[pageNum];
 end;
 
 procedure ShowWelcomeMsg;
@@ -879,12 +902,69 @@ begin
     ScreenOn;
 end;
 
-procedure Animate;
+procedure ShowMenuTime();
 begin
+    Gotoxy(24,9);
+    Write('Time:    ');
+    WriteTime(CurDate);
+end;
+
+procedure ForwardCurTime;
+begin
+    inc(curDate.minute);
+    if (curDate.minute = 60) then begin
+        curDate.minute := 0;
+        Inc(curDate.hour);
+        if curDate.hour = 24 then begin
+            curDate.hour := 0;
+            // refresh 15 sec after mindnight
+            refreshCounter := REFRESH - (framesPerMinute shr 2);
+        end;
+    end;
+end;
+
+procedure Animate;
+var tz:shortInt;
+begin
+    if clockCount < framesPerMinute  then begin
+        inc(clockCount);
+        if clockCount = framesPerMinute then begin
+            ForwardCurTime;
+            if timeShown then ShowMenuTime;
+            clockCount := 0;
+        end;
+    end;
+
     // menu
     if menuDelay>0 then begin
         dec(menuDelay);
         if menuDelay = 0 then menuColor := color4;
+    end;
+    
+    if statusDelay < STATUS_TIME then Inc(statusDelay);
+    if statusDelay = STATUS_TIME then begin 
+        Inc(statusDelay);
+        if page = PAGE_WEATHER then begin
+            Gotoxy(1,9);
+            DelLine;
+            Gotoxy(2,9);
+            Write('Time Zone: GMT');
+            tz := timezone div 3600;
+            if tz <> 0 then begin
+                if tz > 0 then Write('+');
+                Write(tz);
+            end;
+            ShowMenuTime;
+            menuColor := cityColor;
+            timeShown := true;
+        end else begin
+            Gotoxy(1,9);
+            DelLine;
+            MergeCityWithCC;
+            Gotoxy(21-(Length(getLine) shr 1), 9);
+            Writeln(getLine);
+            menuColor := color4 - 2;
+        end;
     end;
     
     //description
@@ -946,7 +1026,7 @@ begin
     getLine := 'Reloading Weather';
     ShowHeader;
     ReloadWeather;
-    refreshConter:=0;
+    refreshCounter:=0;
 end;
 
 procedure ShowForecast;
@@ -964,7 +1044,7 @@ end;
 begin
     portb := $ff;
     hscrol := 8;
-    refreshConter:=0;
+    refreshCounter:=0;
 
 {$ifndef fake}
 
@@ -994,8 +1074,8 @@ begin
             if CRT_SelectPressed then ChangeLocation;
             if CRT_OptionPressed then ChangeUnits;
             atract := 1;
-            inc(refreshConter);
-            if (refreshConter = REFRESH) and (page = PAGE_WEATHER) then UpdateWeather;
+            inc(refreshCounter);
+            if (refreshCounter = REFRESH) and (page = PAGE_WEATHER) then UpdateWeather;
         until KeyPressed;
 
         // menu key reading
