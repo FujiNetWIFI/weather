@@ -16,7 +16,7 @@ var IP_api: string[15] = 'api.ipstack.com';
     OW_api: string[22] = 'api.openweathermap.org';
     getLine: string;    
     ioResult: byte;
-    responseBuffer: array [0..0] of byte absolute JSON_BUFFER;
+    responseBuffer: array [0..4095] of byte absolute JSON_BUFFER;
 
     units:TUnits;
     imperialCCodes: array [0..7] of string[2] = ('US', 'GB', 'IN', 'IE', 'CA', 'AU', 'HK', 'NZ');
@@ -27,15 +27,16 @@ var IP_api: string[15] = 'api.ipstack.com';
     city:string[40];
     tmp, weatherDesc: TString;
     longitude, latitude, ip: string[20];
+    pop, snow, rain,
     pressure, temp, feels, windSpeed, dewpoint, visibility: string[10];
     country_code, icon, humidity, clouds, windAngle: string[3];
     
     descDir, descOffset, descScroll, descHSC: byte;
 
     curDate, sunriseDate, sunsetDate: TDateTime;
-    unixTime: cardinal;
+    refreshConter, unixTime: cardinal;
     timezone: integer;
-
+    
     forecastPtrs: array [0..7] of word;
 
     scrWidth: byte;
@@ -119,7 +120,7 @@ begin
     end;
 end;
 
-function GetDirName(angle:word):byte;
+function GetDirIndex(angle:word):byte;
 begin
     result := Round(angle / 45.0) mod 8;
 end;
@@ -148,12 +149,12 @@ end;
 
 procedure ParseLocation;
 begin
-    ip := GetJsonKeyValue('ip');
-    city := GetJsonKeyValue('city');
+    GetJsonKeyValue('ip', ip);
+    GetJsonKeyValue('city', city);
     utfNormalize(city);
-    country_code := GetJsonKeyValue('country_code');
-    latitude := GetJsonKeyValue('latitude');
-    longitude := GetJsonKeyValue('longitude');
+    GetJsonKeyValue('country_code', country_code);
+    GetJsonKeyValue('latitude', latitude);
+    GetJsonKeyValue('longitude', longitude);
     units := metric;
     if isCCImperial(country_code) then units := imperial;
 end;
@@ -163,13 +164,16 @@ end;
 procedure ParseWeatherCommons;
 var p:word;
 begin
-    unixTime := StrToInt(GetJsonKeyValue('dt')) + timezone;
+    GetJsonKeyValue('dt', tmp);
+    unixTime := StrToInt(tmp) + timezone;
     UnixToDate(unixtime, curDate);
 
-    icon := GetJsonKeyValue('icon');
-    pressure := GetJsonKeyValue('pressure');
-    humidity := GetJsonKeyValue('humidity');
-    windSpeed := GetJsonKeyValue('wind_speed');
+    GetJsonKeyValue('icon', icon );
+    GetJsonKeyValue('pressure', pressure );
+    GetJsonKeyValue('humidity', humidity);
+    GetJsonKeyValue('wind_speed', windSpeed);
+    GetJsonKeyValue('wind_deg', windAngle);
+    
     
     if units = imperial then begin
         p := StrToInt(pressure);
@@ -185,28 +189,30 @@ end;
 
 procedure ParseWeather;
 begin
-    timezone := StrToInt(GetJsonKeyValue('timezone_offset'));
-
-    unixTime := StrToInt(GetJsonKeyValue('sunrise')) + timezone;
+    GetJsonKeyValue('timezone_offset', tmp);
+    timezone := StrToInt(tmp);
+    GetJsonKeyValue('sunrise', tmp);        
+    unixTime := StrToInt(tmp) + timezone;
     UnixToDate(unixtime, sunriseDate);
-    unixTime := StrToInt(GetJsonKeyValue('sunset')) + timezone;
+    GetJsonKeyValue('sunset', tmp);
+    unixTime := StrToInt(tmp) + timezone;
     UnixToDate(unixtime, sunsetDate);
 
     ParseWeatherCommons;
     
-    windAngle := GetJsonKeyValue('wind_deg');
-    clouds := GetJsonKeyValue('clouds');    
-    dewpoint := GetJsonKeyValue('dew_point');
-    weatherDesc := GetJsonKeyValue('description');
-    temp := GetJsonKeyValue('temp');
-    feels := GetJsonKeyValue('feels_like');
-    visibility := GetJsonKeyValue('visibility');
+    GetJsonKeyValue('clouds', clouds );    
+    GetJsonKeyValue('dew_point', dewpoint );
+    GetJsonKeyValue('description', weatherDesc);
+    GetJsonKeyValue('temp', temp);
+    GetJsonKeyValue('feels_like', feels);
+    GetJsonKeyValue('visibility', visibility);
 end;
 
 procedure ParseForecast;
 var i:byte;
 begin
-    timezone := StrToInt(GetJsonKeyValue('timezone_offset'));
+    GetJsonKeyValue('timezone_offset', tmp);
+    timezone := StrToInt(tmp);
     FollowKey('daily');
     for i := 0 to 7 do forecastPtrs[i] := FindIndex(i);
 end;
@@ -215,36 +221,12 @@ procedure ParseDay(day:byte);
 begin
     jsonStart := forecastPtrs[day];
     ParseWeatherCommons;
-    temp := GetJsonKeyValue('day');
-    feels := GetJsonKeyValue('night');
-    //weatherDesc := GetJsonKeyValue('pop');
+    GetJsonKeyValue('day', temp);
+    GetJsonKeyValue('night', feels);
+    GetJsonKeyValue('pop', pop);
+    GetJsonKeyValue('rain', rain);
+    GetJsonKeyValue('snow', snow);
 end;
-
-{$ifdef fake}
-procedure FakeWeather;
-var date: array [0..7] of byte = ($de,7,6,9,21,37,03,0);
-begin
-    UnixToDate(unixtime, curDate);
-    Move(date, curDate,8);
-    Move(date, sunriseDate,8);
-    Move(date, sunsetDate,8);
-    
-    city := 'Przedmiescie Szczebrzeszynskie';
-    country_code := 'PL';
-    //weatherMain := GetJsonKeyValue('main');
-    weatherDesc := 'heavy shower rain and drizzle';
-    icon := '02d';
-    temp := '-20.35';
-    feels := '17.4';
-    pressure := '1024';
-    humidity := '100';
-    windSpeed := '12';
-    windAngle := '245';
-    dewpoint := '8';
-    visibility := '10000';    
-    clouds := '0';
-end;
-{$endif}
 
 // ***************************************************** NETWORK ROUTINES
 
@@ -339,15 +321,15 @@ begin
     city[0] := #0;
     country_code[0] := #0;
     if findKeyPos('name') <> 0 then begin
-        city := GetJsonKeyValue('name');
+        GetJsonKeyValue('name', city);
         UtfNormalize(city);
-        country_code := GetJsonKeyValue('country');
-        latitude := GetJsonKeyValue('lat');
-        longitude := GetJsonKeyValue('lon');
+        GetJsonKeyValue('country', country_code);
+        GetJsonKeyValue('lat', latitude);
+        GetJsonKeyValue('lon', longitude);
     end;
     if findKeyPos('message') <> 0 then begin
-        getLine := GetJsonKeyValue('message');
-        tmp := GetJsonKeyValue('cod');
+        GetJsonKeyValue('message', getLine);
+        GetJsonKeyValue('cod', tmp);
     end;
 end;
 
@@ -393,7 +375,7 @@ begin
     if units = imperial then Write('"Hg');
 end;
 
-procedure Stamp(src,dest:word;w,h:byte);
+procedure PutBitmap(src,dest:word;w,h:byte);
 var row,col:byte;
 begin
     row:=0;
@@ -411,7 +393,7 @@ end;
 
 procedure DrawIcon(src,dest: word);
 begin
-    Stamp(src,dest,10,24);
+    PutBitmap(src,dest,10,24);
 end;
 
 function PutChar(c:char; dest: word; color: byte):byte;
@@ -503,7 +485,7 @@ begin
         end;
     end;
     inc(src, x);
-    Stamp(src, dest, result, h);
+    PutBitmap(src, dest, result, h);
 end;
 
 procedure PrintTemperature(var s:string;dest: word);
@@ -715,7 +697,7 @@ begin
     Write('Wind: ',windSpeed,' ');
     WriteSpeedUnit;
     Write(' ');
-    Write(windDir[getDirName(StrToInt(windAngle))]);
+    Write(windDir[GetDirIndex(StrToInt(windAngle))]);
 
     Gotoxy(24,6);
     Write('Humidity: ', humidity, '%');
@@ -756,6 +738,7 @@ end;
 procedure ShowDayofForecast(column:byte);
 var x:byte;
     o:byte;
+    prob:byte;
 begin
     x := column * 10;
     Str(curDate.day, getLine);
@@ -801,15 +784,34 @@ begin
     Gotoxy(x + o,4);
     Write(getLine);
     WritePressureUnit;
+
+    Gotoxy(x + o,5);
+    Write('Wind: ');
+    Write(char(GetDirIndex(StrToInt(windAngle))));
     
     getLine[0] := #0;
     MergeStr(getLine, windSpeed);
     Gotoxy(x + o,6);
     Write(getLine);
     WriteSpeedUnit;
+    prob := Trunc(StrToFloat(pop) * 100);
+    Gotoxy(x + o,7);
+    if prob > 0 then begin
+        if Length(snow) > 0 then begin
+            Write(#$B' ',prob,'%');
+            Gotoxy(x + o,8);
+            Write(snow,'mm');
+        end 
+        else 
+            if Length(rain) > 0 then begin
+                Write(#$A' ',prob,'%');
+                Gotoxy(x + o,8);
+                Write(rain,'mm');
+            end;
+    end;
 end;
 
-procedure ShowForecast(pageNum:byte);
+procedure ShowForecastPage(pageNum:byte);
 var day, column:byte;
     pages: array[0..1] of byte = ( PAGE_FORECAST0, PAGE_FORECAST1);
 begin
@@ -939,6 +941,22 @@ begin
     ReloadWeather;
 end;
 
+procedure UpdateWeather;
+begin
+    getLine := 'Reloading Weather';
+    ShowHeader;
+    ReloadWeather;
+    refreshConter:=0;
+end;
+
+procedure ShowForecast;
+begin
+    getLine := 'Checking Forecast';
+    ShowHeader;
+    GetForecast;
+    ShowForecastPage(0);
+end;
+
 // **********************************************************************
 // *******************************************************************************  MAIN
 // **********************************************************************
@@ -946,6 +964,7 @@ end;
 begin
     portb := $ff;
     hscrol := 8;
+    refreshConter:=0;
 
 {$ifndef fake}
 
@@ -971,43 +990,32 @@ begin
         // main loop
         repeat  
             pause;
-            atract := 1;
             Animate;
             if CRT_SelectPressed then ChangeLocation;
             if CRT_OptionPressed then ChangeUnits;
+            atract := 1;
+            inc(refreshConter);
+            if (refreshConter = REFRESH) and (page = PAGE_WEATHER) then UpdateWeather;
         until KeyPressed;
 
         // menu key reading
         k := readkey;
         if page = PAGE_WEATHER then         // weather page
             case k of
-                'r', 'R': begin
-                    getLine := 'Reloading Weather';
-                    ShowHeader;
-                    ReloadWeather;
-                end;
+                'r', 'R': UpdateWeather;
                 'u', 'U': ChangeUnits;
-                'f', 'F': begin
-                    getLine := 'Checking Forecast';
-                    ShowHeader;
-                    GetForecast;
-                    ShowForecast(0);
-                end;
+                'f', 'F': ShowForecast;
                 else ShowMenu;
             end
         else                               // forecast page
             case k of
                 'n', 'N': begin
                     case page of
-                        0: ShowForecast(1);
-                        1: ShowForecast(0);
+                        0: ShowForecastPage(1);
+                        1: ShowForecastPage(0);
                     end;
                 end;
-                'b', 'B': begin
-                    getLine := 'Reloading Weather';
-                    ShowHeader;
-                    ReloadWeather;
-                end;                
+                'b', 'B': UpdateWeather            
                 else ShowMenu;
             end;
         

@@ -4,7 +4,7 @@ const
 
 var
     utfMap192: array [0..0] of byte absolute UTFTABLE192;
-    jsonRoot, jsonStart, jsonEnd, jsonPtr: word;
+    jsonRoot, jsonStart, jsonEnd: word;
 
 // ***************************************************** JSON PARSER ROUTINES
 
@@ -23,51 +23,53 @@ begin
 end;
 
 function FindKeyPos(skey:Tstring):word;
-var inQuotes,keyParsing,gotKey,keyMatch,foundKey:boolean;
-    key:Tstring;
+var inQuotes,keyParsing,gotKey,keyMatch:boolean;
+    keyLen:byte;
     level:byte;
     c: char;
+    jptr: word;
 begin
+    result := 0;
     inQuotes := false;
     keyParsing := false;
-    foundKey := false;
     gotKey := false;
+    keyMatch := false;
     level := $ff;
-    jsonPtr := jsonStart;
+    jptr := jsonStart;
     repeat
-        c := char(responseBuffer[jsonPtr]);
+        c := char(responseBuffer[jptr]);
         if not inQuotes then begin     // out of Quotes
 
             case c of
-                '"':begin
+                '"' :begin
                         if not gotKey then begin
                             keyParsing := true;
-                            key[0] := #0;
+                            keyLen := 0;
                             keyMatch := true;
                         end;
                         inQuotes := true;
                     end;
                 
-                ',':begin
+                ',' :begin
                         gotKey := false;
-                        keyParsing := false;
                     end;
 
-                JSON_OPEN:begin
+                JSON_OPEN :begin
                         gotKey := false;
-                        keyParsing := false;
                         inc(level);
                     end;
 
-                JSON_CLOSE:begin
+                JSON_CLOSE :begin
                         gotKey := false;
-                        keyParsing := false;
                         dec(level);
-                        if level = $ff then exit(0);
+                        if level = $ff then exit;
                     end;
                 
-                ':':begin
-                        if gotKey and keyMatch then exit(word(jsonPtr + 1));
+                ':' :begin
+                        if gotKey then begin
+                            result := jptr + 1;
+                            exit;
+                        end;
                     end;
             end;
         
@@ -75,30 +77,28 @@ begin
 
             if c = '"' then begin               // ending quote
                 if keyParsing then begin
-                    gotKey := true;
-                    keyMatch := keyMatch and (Length(key) = Length(skey));
+                    gotKey := keyMatch and (keyLen = Length(skey));
                 end;
                 keyParsing := false;
                 inQuotes := false;
             end else begin                      // other letter
                 if keyParsing then begin
-                    Inc(key[0]);
-                    if skey[Length(key)] <> c then keyMatch := false;
-                    key[Length(key)] := c;
+                    Inc(keyLen);
+                    if (keyLen > Length(skey)) or (skey[keyLen] <> c) then keyMatch := false;
                 end;
             end;
         
         end;
         
-        Inc(jsonPtr);
-    until jsonPtr = jsonEnd;
-    result:=0;
+        Inc(jptr);
+    until jptr >= jsonEnd;
 
 end;
 
 function GetElementsCount: byte;
 var inQuotes,inObject, hasContent:boolean;
     alevel,olevel:byte;
+    jptr:word;
     c: char;
 begin
     alevel := $ff;
@@ -107,10 +107,10 @@ begin
     inQuotes := false;
     inObject := false;
     hasContent := false;
-    jsonPtr := jsonStart;
+    jptr := jsonStart;
 
     repeat
-        c := char(responseBuffer[jsonPtr]);
+        c := char(responseBuffer[jptr]);
         if not inQuotes then begin     // out of Quotes
 
             case c of
@@ -157,13 +157,14 @@ begin
                 inQuotes := false;
             end;
         
-        Inc(jsonPtr);
-    until (jsonPtr = jsonEnd);
+        Inc(jptr);
+    until (jptr >= jsonEnd);
 end;
 
 function FindIndex(i:byte):word;
 var inQuotes,inObject,found:boolean;
     element:byte;
+    jptr: word;
     alevel,olevel:byte;
     c: char;
 begin
@@ -173,10 +174,10 @@ begin
     found := false;
     inQuotes := false;
     inObject := false;
-    jsonPtr := jsonStart;
+    jptr := jsonStart;
 
     repeat
-        c := char(responseBuffer[jsonPtr]);
+        c := char(responseBuffer[jptr]);
         if not inQuotes then begin     // out of Quotes
 
             case c of
@@ -218,63 +219,66 @@ begin
                 inQuotes := false;
             end;
         
-        Inc(jsonPtr);
-    until found or (jsonPtr = jsonEnd);
+        Inc(jptr);
+    until found or (jptr >= jsonEnd);
     result := 0;
-    if found then result := jsonPtr;
+    if found then result := jptr;
 end;
 
-function GetJsonKeyValue(skey:Tstring):Tstring;
+procedure GetJsonKeyValue(skey:Tstring;var v:string);
 var c: char;
     inQuotes: boolean;
+    jptr: word;
 begin
-    result[0] := #0;
+    v[0] := #0;
     inQuotes := false;
-    jsonPtr := FindKeyPos(skey);
+    jptr := FindKeyPos(skey);
     //writeln('key at: ', jsonPtr);
-    if jsonPtr <> 0 then begin
+    if jptr <> 0 then begin
         repeat
-            c := char(responseBuffer[jsonPtr]);
+            c := char(responseBuffer[jptr]);
             case c of 
                 '"':
                     begin
                         if not inQuotes then begin
                             inQuotes := true;
                         end else begin
-                            exit(result);
+                            exit;
                         end;
                     end;
                 ',', JSON_CLOSE, ']':
                     begin
-                        if not inQuotes then exit(result);
+                        if not inQuotes then exit;
                     end;
             else 
-                Inc(result[0]);
-                result[Length(result)] := c;
+                Inc(v[0]);
+                v[Length(v)] := c;
             end;
-            inc(jsonPtr);
-        until jsonPtr = jsonEnd;
+            inc(jptr);
+        until jptr >= jsonEnd;
     end;
-    Writeln('Key not found: ', skey);
-    result := '';
+    //Writeln('Key not found: ', skey);
+    v[0] := #0;
 end;
 
 function FollowKey(s:Tstring):word;
+var jptr:word;
 begin
-    jsonPtr := FindKeyPos(s);
-    if jsonPtr <> 0 then begin
-        jsonStart := jsonPtr;
+    jptr := FindKeyPos(s);
+    if jptr <> 0 then begin
+        jsonStart := jptr;
     end;
-    result := jsonPtr;
+    result := jptr;
 end;
 
 function FollowIndex(i:byte):word;
+var jptr:word;
 begin
-    jsonPtr := FindIndex(i);
-    if jsonPtr <> 0 then begin
-        jsonStart := jsonPtr;
+    jptr := FindIndex(i);
+    if jptr <> 0 then begin
+        jsonStart := jptr;
     end;
-    result := jsonPtr;
+    result := jptr;
 end;
 
 // ***************************************************** JSON HELPERS
@@ -296,17 +300,17 @@ end;
 
 procedure DumpJson;
 var s:string[100];
-    jlen, tomove:word;
+    jptr, jlen, tomove:word;
 begin
     jlen := jsonEnd - jsonStart;
-    jsonPtr := jsonStart;
+    jptr := jsonStart;
     while (jlen>0) do begin
         tomove := jlen;
         if jlen>100 then tomove := 100;
         s[0] := char(tomove);
-        Move(responseBuffer[jsonPtr],s[1],tomove);
+        Move(responseBuffer[jptr],s[1],tomove);
         jlen := jlen - tomove;
-        jsonPtr := jsonPtr + tomove;
+        jptr := jptr + tomove;
         EscapeJson(s);
         Write(s);
     end;

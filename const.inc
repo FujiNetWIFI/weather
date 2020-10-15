@@ -4,7 +4,7 @@
 // ;*** I like to keep memory locations at top of this file
 //
 
-GFX = $7000; //  
+GFX = $7000;
 DLIST = $7F00;
 DLIST2 = DLIST + $80;
 
@@ -21,9 +21,10 @@ JSON_BUFFER = $A000;
 
 
 
+REFRESH = 60 * 60*50;
 
-BOUNCE_DELAY = 150;
 SCROLL_SPEED = 2;
+BOUNCE_DELAY = 150;
 
 CALL_WEATHER = 0;
 CALL_CHECKCITY = 1;
