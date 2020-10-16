@@ -626,11 +626,11 @@ begin
     statusDelay := 0;
     timeShown := false;
     menuColor := cityColor;
-    Gotoxy(2,9);
+    Gotoxy(1,9);
     if page = PAGE_WEATHER then 
-        Write('F'*+'orecast    '+'U'*+'nits     '+'R'*+'efresh   '+'Q'*+'uit   ')
+        Write(' '+'F'*+'orecast    '+'U'*+'nits     '+'R'*+'efresh   '+'Q'*+'uit   ')
     else 
-        Write('N'*+'ext      '+'B'*+'ack                '+'Q'*+'uit    .');    
+        Write(' '+'N'*+'ext      '+'B'*+'ack                '+'Q'*+'uit     ');    
 end;
 
 procedure InitGfx;
@@ -673,6 +673,8 @@ begin
 end;
 
 procedure ShowWeather;
+var tempLen:byte;
+    grade:string[2];
 begin
     page := PAGE_WEATHER;
     ScreenOff;
@@ -695,16 +697,15 @@ begin
     // temperature
     getLine[0] := #0;
     MergeStr(getLine, temp);
-    
-    if units = metric then begin
-        if Length(getLine)>5 then setLength(getLine, 5); 
-        if getLine[Length(getLine)] = '.' then Dec(getLine[0]);
-        MergeStr(getLine, '^C') 
-    end else begin
-        if Length(getLine)>4 then setLength(getLine, 4); 
-        if getLine[Length(getLine)] = '.' then Dec(getLine[0]);
-        MergeStr(getLine, '^F');
+    tempLen := 5;
+    grade := '^C';
+    if units = imperial then begin
+        tempLen := 4;
+        grade := '^F'
     end;
+    if Length(getLine)>tempLen then setLength(getLine, tempLen); 
+    if getLine[Length(getLine)] = '.' then Dec(getLine[0]);
+    MergeStr(getLine, grade);
     PrintTemperature(getLine, VRAM + 17 * 40 + 12);
     
     // pressure
@@ -712,7 +713,6 @@ begin
     PutString(pressure, VRAM + 16 * 40 + i, 3);
     if units = metric then getLine := 'hPa'
         else getLine := '"Hg';
-    
     PutString(getLine, VRAM + 24 * 40 + 34, 3);
     
     // desription
@@ -769,6 +769,7 @@ procedure ShowDayofForecast(column:byte);
 var x:byte;
     o:byte;
     prob:byte;
+    grade:string[2];
 begin
     x := column * 10;
     Str(curDate.day, getLine);
@@ -790,19 +791,19 @@ begin
 
     o := 2; // left margin
 
+    grade := '^C';
+    if units = imperial then grade := '^F';
     getLine[0] := #0;
     MergeStr(getLine, feels);
     if Length(getLine)>5 then setLength(getLine, 5); 
-    if units = metric then MergeStr(getLine, '^C') 
-        else MergeStr(getLine, '^F');
+    MergeStr(getLine, grade);
     Gotoxy(x + o,1);
     Write(getLine);
 
     getLine[0] := #0;
     MergeStr(getLine, temp);
     if Length(getLine)>5 then setLength(getLine, 5); 
-    if units = metric then MergeStr(getLine, '^C') 
-        else MergeStr(getLine, '^F');
+    MergeStr(getLine, grade);
     Gotoxy(x + o,2);
     Write(getLine);
 
@@ -839,7 +840,7 @@ end;
 
 procedure ShowForecastPage(pageNum:byte);
 var day, column:byte;
-    pages: array[0..1] of byte = ( PAGE_FORECAST0, PAGE_FORECAST1);
+    pages: array[0..1] of byte = (PAGE_FORECAST0, PAGE_FORECAST1);
 begin
     page := pages[pageNum];
     ScreenOff;
@@ -893,7 +894,7 @@ begin
     move(logo[3*13],pointer(savmsc+40*4+2),13);
     
     Gotoxy(17,3);
-    Write('openWeather.org client');
+    Write('OpenWeather client');
     Gotoxy(17,4);
     Write('by bocianu@gmail.com');
     Gotoxy(2,6);
