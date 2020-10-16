@@ -4,8 +4,6 @@ program weather;
 uses atari, sysutils, crt, b_crt, fn_tcp, fn_sio;
 {$r resources.rc}
 
-{ $define fake}
-
 const
 {$i const.inc}
 {$i datetime.inc}
@@ -89,7 +87,6 @@ var IP_api: string[15] = 'api.ipstack.com';
   
     
 // ***************************************************** HELPERS    
-    
 
 procedure ScreenOff;
 begin
@@ -162,8 +159,6 @@ begin
     units := metric;
     if isCCImperial(country_code) then units := imperial;
 end;
-
-
 
 procedure ParseWeatherCommons;
 var p:word;
