@@ -21,13 +21,12 @@ var IP_api: string[15] = 'api.ipstack.com';
     windDir: array [0..7] of string[2] = ('N ', 'NE', 'E ', 'SE', 'S ', 'SW', 'W ', 'NW');
     monthNames: array [0..11] of string[5] = (' Jan ', ' Feb ', ' Mar ', ' Apr ', ' May ', ' Jun' , ' Jul ', ' Aug ', ' Sep ',' Oct ',' Nov ',' Dec ');
     dowNames: array [0..6] of string[3] = ('Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat');
+    weatherDescLen: byte;
 
-    city:string[40];
-    tmp, weatherDesc: TString;
-    longitude, latitude, ip: string[20];
-    pop, snow, rain,
-    pressure, temp, feels, windSpeed, dewpoint, visibility: string[10];
-    country_code, icon, humidity, clouds, windAngle: string[3];
+    city, tmp: string[40];
+    country_code: string[3];
+    longitude, latitude: string[20];
+    apikey: string[32];
     
     descDir, descOffset, descScroll, descHSC: byte;
 
@@ -69,10 +68,10 @@ var IP_api: string[15] = 'api.ipstack.com';
     );
 
     logo: array [0..13*4-1] of byte = (
-    $00, $00, $00, $00, $00, $5a, $5b, $5c, $00, $00, $00, $00, $00, 
-    $40, $41, $42, $43, $44, $54, $55, $56, $4a, $4b, $4c, $4d, $4e, 
-    $45, $46, $47, $48, $49, $57, $58, $59, $4f, $50, $51, $52, $53, 
-    $00, $00, $00, $00, $00, $00, $5d, $5e, $5f, $00, $00, $00, $00
+        $00, $00, $00, $00, $00, $5a, $5b, $5c, $00, $00, $00, $00, $00, 
+        $40, $41, $42, $43, $44, $54, $55, $56, $4a, $4b, $4c, $4d, $4e, 
+        $45, $46, $47, $48, $49, $57, $58, $59, $4f, $50, $51, $52, $53, 
+        $00, $00, $00, $00, $00, $00, $5d, $5e, $5f, $00, $00, $00, $00
     );
 
     colorsNTSC: array [0..3] of byte = ( $a6, $2c, $0f, $90 );
@@ -98,7 +97,7 @@ begin
     sdmctl := sdmctl or %10;
 end;
 
-procedure MergeStr(var s1:string;s2:string[80]);
+procedure MergeStr(var s1:string;s2:string[40]);
 var l1,l2:byte;
 begin
     l1 := Length(s1);
@@ -121,7 +120,7 @@ begin
     end;
 end;
 
-function GetDirIndex(angle:word):byte;
+function GetDirIndex(angle: word):byte;
 begin
     result := Round(angle / 45.0) mod 8;
 end;
@@ -146,86 +145,62 @@ begin
     if icon[3] = 'n' then result := iconsN[iconId];
 end;
 
+procedure MergeCityWithCC;
+begin
+    getLine[0] := #0;
+    MergeStr(getLine, city);    
+    MergeStr(getLine, ', ');
+    MergeStr(getLine, country_code);
+    if Length(getLine) > 40 then setLength(getLine, 40); 
+end;
+
+procedure ConvertHPA2INHG(var tmp:string);
+var p:word;
+begin
+    p := StrToInt(tmp);
+    p := p * 3;
+    Str(p, tmp);
+    tmp[5]:=tmp[4];
+    tmp[4]:=tmp[3];
+    tmp[3]:='.';
+    Inc(tmp[0]);
+end;
+
 // ********************************************************* DATA PARSERS
+
+procedure GetTimezone;
+begin
+    GetJsonKeyValue('timezone_offset', tmp);
+    timezone := StrToInt(tmp);    
+end;
 
 procedure ParseLocation;
 begin
-    GetJsonKeyValue('ip', ip);
+    units := metric;
+    GetJsonKeyValue('ip', tmp);
     GetJsonKeyValue('city', city);
     utfNormalize(city);
     GetJsonKeyValue('country_code', country_code);
+    if isCCImperial(country_code) then units := imperial;
     GetJsonKeyValue('latitude', latitude);
     GetJsonKeyValue('longitude', longitude);
-    units := metric;
-    if isCCImperial(country_code) then units := imperial;
 end;
-
-procedure ParseWeatherCommons;
-var p:word;
-begin
-    GetJsonKeyValue('dt', tmp);
-    unixTime := StrToInt(tmp) + timezone;
-    UnixToDate(unixtime, curDate);
-
-    GetJsonKeyValue('icon', icon );
-    GetJsonKeyValue('pressure', pressure );
-    GetJsonKeyValue('humidity', humidity);
-    GetJsonKeyValue('wind_speed', windSpeed);
-    GetJsonKeyValue('wind_deg', windAngle);
-    
-    
-    if units = imperial then begin
-        p := StrToInt(pressure);
-        p := p * 3;
-        Str(p, pressure);
-        pressure[5]:=pressure[4];
-        pressure[4]:=pressure[3];
-        pressure[3]:='.';
-        Inc(pressure[0]);
-    end;
-end;
-
 
 procedure ParseWeather;
 begin
-    GetJsonKeyValue('timezone_offset', tmp);
-    timezone := StrToInt(tmp);
-    GetJsonKeyValue('sunrise', tmp);        
+    GetTimezone;
+    GetJsonKeyValue('dt', tmp);
     unixTime := StrToInt(tmp) + timezone;
-    UnixToDate(unixtime, sunriseDate);
-    GetJsonKeyValue('sunset', tmp);
-    unixTime := StrToInt(tmp) + timezone;
-    UnixToDate(unixtime, sunsetDate);
-
-    ParseWeatherCommons;
+    UnixToDate(unixtime, curDate);
     clockCount := CurDate.second * fps;
-    
-    GetJsonKeyValue('clouds', clouds );    
-    GetJsonKeyValue('dew_point', dewpoint );
-    GetJsonKeyValue('description', weatherDesc);
-    GetJsonKeyValue('temp', temp);
-    GetJsonKeyValue('feels_like', feels);
-    GetJsonKeyValue('visibility', visibility);
 end;
 
 procedure ParseForecast;
 var i:byte;
 begin
-    GetJsonKeyValue('timezone_offset', tmp);
-    timezone := StrToInt(tmp);
+    GetTimezone;
     FollowKey('daily');
     for i := 0 to 7 do forecastPtrs[i] := FindIndex(i);
-end;
-
-procedure ParseDay(day:byte);
-begin
-    jsonStart := forecastPtrs[day];
-    ParseWeatherCommons;
-    GetJsonKeyValue('day', temp);
-    GetJsonKeyValue('night', feels);
-    GetJsonKeyValue('pop', pop);
-    GetJsonKeyValue('rain', rain);
-    GetJsonKeyValue('snow', snow);
 end;
 
 // ***************************************************** NETWORK ROUTINES
@@ -296,10 +271,6 @@ end;
 
 procedure GetWeather;
 begin
-    {$ifdef fake}
-    FakeWeather; exit;
-    {$endif}
-   
     ComposeGetHeader(getLine, CALL_WEATHER);
     HTTPGet(OW_api, getLine);
     ParseWeather;
@@ -312,18 +283,15 @@ begin
     ParseForecast;
 end;
 
-
 procedure GetCityLocation;
 begin
     ComposeGetHeader(getLine, CALL_CHECKCITY);
     HTTPGet(OW_api, getLine);
     getLine[0] := #0;
-    city[0] := #0;
-    country_code[0] := #0;
     if findKeyPos('name') <> 0 then begin
         GetJsonKeyValue('name', city);
         UtfNormalize(city);
-        GetJsonKeyValue('country', country_code);
+        GetJsonKeyValue('country', tmp);
         GetJsonKeyValue('lat', latitude);
         GetJsonKeyValue('lon', longitude);
     end;
@@ -335,12 +303,11 @@ end;
 
 procedure GetIPLocation;
 begin
-    getLine:='GET /check?access_key=9ba846d99b9d24288378762533e00318&';
-    MergeStr(getLine, 'fields=ip,country_code,city,latitude,longitude');
+    getLine:='GET /check?access_key=9ba846d99b9d24288378762533e00318&fields=ip,country_code,city,latitude,longitude';
     AppendRequestHeaders(getLine, IP_api);
     HTTPGet(IP_api, getLine);
     ParseLocation;
-    Writeln('Your IP: ',ip);
+    Writeln('Your IP: ',tmp);
 end;
 
 // ***************************************************** GUI ROUTINES
@@ -359,20 +326,12 @@ begin
         if date.hour > 12 then Write('pm')
             else Write('am');
     end;
-    //if date.second < 10 then Write(0);
-    //Write(date.second);
 end;
 
 procedure WriteSpeedUnit;
 begin
     if units = metric then Write('m/s');
     if units = imperial then Write('mph');
-end;
-
-procedure WritePressureUnit;
-begin
-    if units = metric then Write('hPa');
-    if units = imperial then Write('"Hg');
 end;
 
 procedure PutBitmap(src,dest:word;w,h:byte);
@@ -420,15 +379,15 @@ begin
     until row = 8;
 end;
 
-procedure PutString(var s:string;dest: word;color:byte);
-var i:byte;
-    line:string[40];
+procedure PutString(var s:string; dest: word; color: byte);
+var i: byte;
+    line: string[40];
 begin
-    i:=1;
-    line:=Atascii2Antic(s);
-    while (i<=Length(line)) do begin
-        PutChar(line[i],dest,color);
-        inc(dest,2);
+    i := 1;
+    line := Atascii2Antic(s);
+    while (i <= Length(line)) do begin
+        PutChar(line[i], dest, color);
+        inc(dest, 2);
         inc(i);
     end;
 end;
@@ -501,10 +460,9 @@ end;
 
 procedure ShowLocation;
 begin
-    Writeln('Location: ',city,', ',country_code);
-    Writeln('latitude: ',latitude);
-    Writeln('longitude: ',longitude);
-    //Writeln('zip-code: ',zip);
+    Writeln('Location: ', city, ', ', country_code);
+    Writeln('latitude: ', latitude);
+    Writeln('longitude: ', longitude);
     Write('units: ');
     if units = metric then Writeln('metric')
     else Writeln('imperial');
@@ -539,7 +497,6 @@ var timeout:byte;
     counter:byte;
     change:boolean;
 begin
-    CursorOff;
     counter := 1;
     timeout := 4;
     change := false;
@@ -556,7 +513,6 @@ begin
     until change or (timeout = 0);
     DelLine;
     if change then PromptLocation;
-    CursorOn;
 end;
 
 procedure ClearGfx;
@@ -564,7 +520,7 @@ begin
     FillByte(pointer(VRAM),VRAM_SIZE,0);
 end;
 
-procedure ScrollDescription;
+procedure MoveDescription;
 var row:byte;
     dlptr:byte;
     vptr:word;
@@ -587,20 +543,20 @@ begin
     poke(DLIST + dlptr, addr);
 end;
 
-procedure ScrollInit;
+procedure InitScroll;
 begin
     descDir := 0;
     descOffset := 0;
     descScroll := BOUNCE_DELAY;
     descHSC := 8;
     hscrol := descHSC;
-    ScrollDescription;
+    MoveDescription;
 end;
 
 procedure ShowHeader;
 begin
     ClearGfx;
-    ScrollInit;
+    InitScroll;
     scrWidth:=80;
     PutCString(getLine, VRAM + 43 * 40 + 2,1,20);
     scrWidth:=40;
@@ -608,10 +564,12 @@ end;
 
 procedure ShowDescription;
 begin
-    ScrollInit;
+    InitScroll;
     scrWidth := 80;
-    PutCString(weatherDesc, VRAM + 43 * 40 + 2,1,20);
-    PutCString(weatherDesc, VRAM + 41 * 40 + 2,3,20); 
+    GetJsonKeyValue('description', getLine);
+    PutCString(getLine, VRAM + 43 * 40 + 2,1,20);
+    PutCString(getLine, VRAM + 41 * 40 + 2,3,20); 
+    weatherDescLen := Length(getLine);
     scrWidth := 40;
 end;
 
@@ -658,15 +616,6 @@ begin
     menuColor := color4;
 end;
 
-procedure MergeCityWithCC;
-begin
-    getLine[0] := #0;
-    MergeStr(getLine, city);    
-    MergeStr(getLine, ', ');
-    MergeStr(getLine, country_code);
-    if Length(getLine) > 40 then setLength(getLine, 40); 
-end;
-
 procedure ShowWeather;
 var tempLen:byte;
     grade:string[2];
@@ -675,7 +624,10 @@ begin
     ScreenOff;
     InitGfx;
     // set backgrond color based on icon type
-    if icon[3] = 'd' then color4 := (colors[3] and $f0) or $0a;
+    GetJsonKeyValue('icon', tmp);
+    if tmp[3] = 'd' then color4 := (colors[3] and $f0) or $0a;
+    // icon
+    DrawIcon(GetIconPtr(tmp), VRAM + 17 * 40);
 
     // date
     Str(curDate.day, getLine);
@@ -686,12 +638,9 @@ begin
     MergeStr(getLine, dowNames[curDate.dow]);
     PutCString(getLine, VRAM + 0 * 40, 1,20);
    
-    // icon
-    DrawIcon(GetIconPtr(icon), VRAM + 17 * 40);
     
     // temperature
-    getLine[0] := #0;
-    MergeStr(getLine, temp);
+    GetJsonKeyValue('temp', getLine);
     tempLen := 5;
     grade := '^C';
     if units = imperial then begin
@@ -704,10 +653,14 @@ begin
     PrintTemperature(getLine, VRAM + 17 * 40 + 12);
     
     // pressure
-    i := 40 - Length(pressure) shl 1;
-    PutString(pressure, VRAM + 16 * 40 + i, 3);
-    if units = metric then getLine := 'hPa'
-        else getLine := '"Hg';
+    GetJsonKeyValue('pressure', tmp);
+    getLine := 'hPa';
+    if units = imperial then begin
+        getLine := '"Hg';
+        ConvertHPA2INHG(tmp);
+    end;
+    i := 40 - Length(tmp) shl 1;
+    PutString(tmp, VRAM + 16 * 40 + i, 3);
     PutString(getLine, VRAM + 24 * 40 + 34, 3);
     
     // desription
@@ -722,39 +675,53 @@ begin
     Writeln(getLine);
 
     // wind
+    GetJsonKeyValue('wind_speed', tmp);
     Gotoxy(2,3);
-    Write('Wind: ',windSpeed,' ');
+    Write('Wind: ',tmp,' ');
     WriteSpeedUnit;
     Write(' ');
-    Write(windDir[GetDirIndex(StrToInt(windAngle))]);
+    GetJsonKeyValue('wind_deg', tmp);
+    Write(windDir[GetDirIndex(StrToInt(tmp))]);
 
+    GetJsonKeyValue('humidity', tmp);
     Gotoxy(24,6);
-    Write('Humidity: ', humidity, '%');
+    Write('Humidity: ', tmp, '%');
+    GetJsonKeyValue('clouds', tmp);
     Gotoxy(24,7);
-    Write('Clouds:   ', clouds, '%');
+    Write('Clouds:   ', tmp, '%');
 
+    GetJsonKeyValue('sunrise', tmp);        
+    unixTime := StrToInt(tmp) + timezone;
+    UnixToDate(unixtime, sunriseDate);
     Gotoxy(24,3);
     Write('Sunrise: ');
     WriteTime(sunriseDate);
+    
+    GetJsonKeyValue('sunset', tmp);
+    unixTime := StrToInt(tmp) + timezone;
+    UnixToDate(unixtime, sunsetDate);
     Gotoxy(24,4);
     Write('Sunset:  ');
     WriteTime(sunsetDate);
 
+    GetJsonKeyValue('dew_point', tmp);
     Gotoxy(2,6);
-    Write('Dew point:  ',dewPoint);
-    if units = metric then Write('^C') else Write('^F');
-
+    Write('Dew point:  ',tmp);
+    Write(grade);
+    
+    GetJsonKeyValue('visibility', tmp);
     Gotoxy(2,7);
-    unixtime := StrToInt(visibility);
+    unixtime := StrToInt(tmp);
     Write('Visibility: ');
     if unixtime > 1000 then begin
         unixtime := unixtime div 1000;
         write(unixtime, 'km')
     end else Write(unixtime, 'm');
 
+    GetJsonKeyValue('feels_like', tmp);
     Gotoxy(2,4);
-    Write('Feels like: ', feels);
-    if units = metric then Write('^C') else Write('^F');
+    Write('Feels like: ', tmp);
+    Write(grade);
     
     ShowMenu;
     ScreenOn;
@@ -766,7 +733,10 @@ var x:byte;
     prob:byte;
     grade:string[2];
 begin
+    grade := '^C';
+    if units = imperial then grade := '^F';
     x := column * 10;
+
     Str(curDate.day, getLine);
     PutCString(getLine, VRAM + 0 * 40 + x, 3, 5);
     getLine[0] := #0;
@@ -774,7 +744,8 @@ begin
     PutString(getLine, VRAM + 8 * 40 + x, 1);
 
     // icon
-    DrawIcon(GetIconPtr(icon), VRAM + 17 * 40 + x);
+    GetJsonKeyValue('icon', tmp);
+    DrawIcon(GetIconPtr(tmp), VRAM + 17 * 40 + x);
     
     scrWidth := 80;
     getLine[0] := #0;
@@ -786,49 +757,53 @@ begin
 
     o := 2; // left margin
 
-    grade := '^C';
-    if units = imperial then grade := '^F';
-    getLine[0] := #0;
-    MergeStr(getLine, feels);
+    GetJsonKeyValue('night', getLine);
     if Length(getLine)>5 then setLength(getLine, 5); 
     MergeStr(getLine, grade);
     Gotoxy(x + o,1);
     Write(getLine);
 
-    getLine[0] := #0;
-    MergeStr(getLine, temp);
+    GetJsonKeyValue('day', getLine);
     if Length(getLine)>5 then setLength(getLine, 5); 
     MergeStr(getLine, grade);
     Gotoxy(x + o,2);
     Write(getLine);
 
-    getLine[0] := #0;
-    MergeStr(getLine, pressure);
+    GetJsonKeyValue('pressure', getLine);
+    tmp := 'hPa';
+    if units = imperial then begin
+        tmp := '"Hg';
+        ConvertHPA2INHG(getLine);
+    end;
     Gotoxy(x + o,4);
-    Write(getLine);
-    WritePressureUnit;
-
+    Write(getLine, tmp);
+    
+    GetJsonKeyValue('wind_deg', getLine);
     Gotoxy(x + o,5);
     Write('Wind: ');
-    Write(char(GetDirIndex(StrToInt(windAngle))));
+    Write(char(GetDirIndex(StrToInt(getLine))));
     
-    getLine[0] := #0;
-    MergeStr(getLine, windSpeed);
+    GetJsonKeyValue('wind_speed', getLine);
     Gotoxy(x + o,6);
     Write(getLine);
     WriteSpeedUnit;
-    prob := Trunc(StrToFloat(pop) * 100);
+    
+    GetJsonKeyValue('pop', tmp);
+    prob := Trunc(StrToFloat(tmp) * 100);
+    
+    GetJsonKeyValue('snow', tmp);
+    GetJsonKeyValue('rain', getLine);
     Gotoxy(x + o,7);
     if prob > 0 then begin
-        if Length(snow) > 0 then begin
+        if Length(tmp) > 0 then begin // snow
             Write(#$B' ',prob,'%');
             Gotoxy(x + o,8);
-            Write(snow,'mm');
+            Write(tmp,'mm');
         end 
-        else if Length(rain) > 0 then begin
+        else if Length(getLine) > 0 then begin // rain
             Write(#$A' ',prob,'%');
             Gotoxy(x + o,8);
-            Write(rain,'mm');
+            Write(getLine,'mm');
         end;
     end;
 end;
@@ -840,7 +815,7 @@ begin
     page := pages[pageNum];
     ScreenOff;
     InitGfx;
-    ScrollInit;
+    InitScroll;
 
     color0 := colors[0] - 4;
     color4 := (colors[3] and $f0) or $06;
@@ -851,14 +826,13 @@ begin
 
     repeat 
         if forecastPtrs[day]<>0 then begin
-            ParseDay(day);
+            jsonStart := forecastPtrs[day];
+            ParseWeather;
             ShowDayofForecast(column);
         end;
         inc(day);
         inc(column);
     until column = 4;
-
-    savmsc:= VRAM + (41 * 40) + (9 * 80);
 
     ShowMenu;
     ScreenOn;
@@ -878,8 +852,8 @@ begin
     color4 := 0;
 
     // prepare logo charset
-    move(pointer($e000),pointer(VRAM), $400);
-    move(pointer(LOGO_CHARSET),pointer(VRAM+$200), $100);
+    move(pointer($e000), pointer(VRAM), $400);
+    move(pointer(LOGO_CHARSET), pointer(VRAM + $200), $100);
     chbas := Hi(VRAM); 
 
     // draw logo
@@ -889,16 +863,17 @@ begin
     move(logo[3*13],pointer(savmsc+40*4+2),13);
     
     Gotoxy(17,3);
-    Write('OpenWeather client');
+    Write('Open Weather client');
     Gotoxy(17,4);
     Write('by bocianu@gmail.com');
     Gotoxy(2,6);
     Writeln;
 
+    CursorOff;
     ScreenOn;
 end;
 
-procedure ShowMenuTime();
+procedure ShowMenuTime;
 begin
     Gotoxy(24,9);
     Write('Time:    ');
@@ -964,7 +939,7 @@ begin
     end;
     
     //description
-    if (Length(weatherDesc) > 20) and (page = PAGE_WEATHER) then begin
+    if (weatherDescLen > 20) and (page = PAGE_WEATHER) then begin
         dec(descScroll);
         if descScroll = 0 then begin
             descScroll := SCROLL_SPEED;
@@ -972,10 +947,10 @@ begin
                 dec(descHSC);
                 if descHSC <= 4 then begin
                     inc(descOffset);
-                    ScrollDescription;;
+                    MoveDescription;;
                     descHsc := 8;
                 end;
-                if descOffset = (Length(weatherDesc) shl 1) - 40 then begin
+                if descOffset = (weatherDescLen shl 1) - 40 then begin
                     descDir := 1;
                     descScroll := BOUNCE_DELAY;
                 end;
@@ -983,7 +958,7 @@ begin
                 inc (descHSC);
                 if descHSC >= 9 then  begin
                     dec(descOffset);
-                    ScrollDescription;;
+                    MoveDescription;;
                     descHSC := 5;
                 end;
                 if (descOffset = 0) and (descHSC = 8) then begin
@@ -1022,7 +997,7 @@ begin
     getLine := 'Reloading Weather';
     ShowHeader;
     ReloadWeather;
-    refreshCounter:=0;
+    refreshCounter := 0;
 end;
 
 procedure ShowForecast;
@@ -1042,23 +1017,16 @@ begin
     hscrol := 8;
     refreshCounter:=0;
 
-{$ifndef fake}
-
     ShowWelcomeMsg;
-    Writeln('Connecting to ipstack.com');
+    Writeln('Connecting to ', IP_api);
     Writeln('Checking your ip and location');
-
     GetIPLocation;
     ShowLocation;
     WaitForOverride;
 
     Writeln;
-    Writeln('Connecting to openweathermap.org');
+    Writeln('Connecting to ', OW_api);
     Writeln('Checking weather for your location');
-
-{$endif}
-
-    CursorOff;
     ReloadWeather;
     
     repeat

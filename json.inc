@@ -5,6 +5,8 @@ const
 var
     utfMap192: array [0..0] of byte absolute UTFTABLE192;
     jsonRoot, jsonStart, jsonEnd: word;
+    
+type KeyString = string[12];   
 
 // ***************************************************** JSON PARSER ROUTINES
 
@@ -22,7 +24,7 @@ begin
     until ptr = jsonEnd;
 end;
 
-function FindKeyPos(skey:Tstring):word;
+function FindKeyPos(skey:KeyString):word;
 var inQuotes,keyParsing,gotKey,keyMatch:boolean;
     keyLen:byte;
     level:byte;
@@ -225,7 +227,7 @@ begin
     if found then result := jptr;
 end;
 
-procedure GetJsonKeyValue(skey:Tstring;var v:string);
+procedure GetJsonKeyValue(skey:KeyString;var v:string);
 var c: char;
     inQuotes: boolean;
     jptr: word;
@@ -261,7 +263,7 @@ begin
     v[0] := #0;
 end;
 
-function FollowKey(s:Tstring):word;
+function FollowKey(s:KeyString):word;
 var jptr:word;
 begin
     jptr := FindKeyPos(s);
@@ -299,14 +301,14 @@ begin
 end;
 
 procedure DumpJson;
-var s:string[100];
+var s:string[40];
     jptr, jlen, tomove:word;
 begin
     jlen := jsonEnd - jsonStart;
     jptr := jsonStart;
     while (jlen>0) do begin
         tomove := jlen;
-        if jlen>100 then tomove := 100;
+        if jlen>40 then tomove := 40;
         s[0] := char(tomove);
         Move(responseBuffer[jptr],s[1],tomove);
         jlen := jlen - tomove;
