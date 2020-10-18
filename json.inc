@@ -6,7 +6,7 @@ var
     utfMap192: array [0..0] of byte absolute UTFTABLE192;
     jsonRoot, jsonStart, jsonEnd: word;
     
-type KeyString = string[12];   
+type KeyString = string[20];   
 
 // ***************************************************** JSON PARSER ROUTINES
 
@@ -25,7 +25,7 @@ begin
 end;
 
 function FindKeyPos(skey:KeyString):word;
-var inQuotes,keyParsing,gotKey,keyMatch:boolean;
+var inQuotes,keyParsing,gotKey,keyMatch,expectKey:boolean;
     keyLen:byte;
     level:byte;
     c: char;
@@ -33,6 +33,7 @@ var inQuotes,keyParsing,gotKey,keyMatch:boolean;
 begin
     result := 0;
     inQuotes := false;
+    expectKey := true;
     keyParsing := false;
     gotKey := false;
     keyMatch := false;
@@ -44,7 +45,7 @@ begin
 
             case c of
                 '"' :begin
-                        if not gotKey then begin
+                        if not gotKey and expectKey then begin
                             keyParsing := true;
                             keyLen := 0;
                             keyMatch := true;
@@ -54,15 +55,18 @@ begin
                 
                 ',' :begin
                         gotKey := false;
+                        expectKey := true;
                     end;
 
                 JSON_OPEN :begin
                         gotKey := false;
+                        expectKey := true;
                         inc(level);
                     end;
 
                 JSON_CLOSE :begin
                         gotKey := false;
+                        expectKey := true;
                         dec(level);
                         if level = $ff then exit;
                     end;
@@ -70,6 +74,7 @@ begin
                 ':' :begin
                         if gotKey then begin
                             result := jptr + 1;
+                            expectKey := false;
                             exit;
                         end;
                     end;
@@ -83,6 +88,7 @@ begin
                 end;
                 keyParsing := false;
                 inQuotes := false;
+                expectKey := false;
             end else begin                      // other letter
                 if keyParsing then begin
                     Inc(keyLen);
@@ -315,6 +321,10 @@ begin
         jptr := jptr + tomove;
         EscapeJson(s);
         Write(s);
+        if keypressed then begin
+            readkey;
+            break;
+        end;
     end;
     Writeln;
 end;
@@ -343,7 +353,7 @@ begin
     utfLen := Length(s);
     readHead := 1;
     writeHead := 1;
-    repeat
+    while readHead <= utfLen do begin
         if (s[readHead] = '\') and (s[readHead + 1] = 'u') then begin  // detect and decode \uXXXX codes
             hex := Hex2dec(s[readHead+2]) shl 12;
             hex := hex + Hex2dec(s[readHead + 3]) shl 8;
@@ -366,7 +376,7 @@ begin
                 inc(readHead);
                 inc(writeHead);
             end;
-    until readHead > utfLen;
+    end;
     SetLength(s,writeHead - 1);
 end;
 

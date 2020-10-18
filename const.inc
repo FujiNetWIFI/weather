@@ -4,22 +4,20 @@
 // ;*** I like to keep memory locations at top of this file
 //
 
-GFX = $7000;
-DLIST = $7F00;
+LOGO_CHARSET = $8D00; // 256b
+UTFTABLE192 = $8E00;  // 386b
+
+FONT = $9000; // 1Kb
+VRAM = $9400; 
+VRAMTXT = VRAM + $400;
+VRAM_SIZE = (41 * 40) + (9 * 80) + (9 * 40); // $AA0 b
+
+GFX = $A000;    //  3840  $f00
+DLIST = $AF00;  //  1 page both
 DLIST2 = DLIST + $80;
 
-FONT = $8000;
-VRAM = $8400;  
-VRAMTXT = VRAM + $400;
-VRAM_SIZE = (41 * 40) + (9 * 80) + (9 * 40); // AA0
 
-UTFTABLE192 = $9400;
-PMG = $9000;
-LOGO_CHARSET = PMG;
-
-JSON_BUFFER = $A000;
-
-
+JSON_BUFFER = $B000;  // 4Kb
 
 REFRESH = 60 * 60*50;
 

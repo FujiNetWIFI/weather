@@ -12,11 +12,14 @@ type Tunits = (metric, imperial);
 
 var IP_api: string[15] = 'api.ipstack.com';
     OW_api: string[22] = 'api.openweathermap.org';
+    OC_api: string[20] = 'api.opencagedata.com';
+    
     getLine: string;    
     ioResult: byte;
     responseBuffer: array [0..4095] of byte absolute JSON_BUFFER;
 
     units:TUnits;
+    showRegion: boolean = false;
     imperialCCodes: array [0..7] of string[2] = ('US', 'GB', 'IN', 'IE', 'CA', 'AU', 'HK', 'NZ');
     windDir: array [0..7] of string[2] = ('N ', 'NE', 'E ', 'SE', 'S ', 'SW', 'W ', 'NW');
     monthNames: array [0..11] of string[5] = (' Jan ', ' Feb ', ' Mar ', ' Apr ', ' May ', ' Jun' , ' Jul ', ' Aug ', ' Sep ',' Oct ',' Nov ',' Dec ');
@@ -25,6 +28,7 @@ var IP_api: string[15] = 'api.ipstack.com';
 
     city, tmp: string[40];
     country_code: string[3];
+    region_code: string[3];
     longitude, latitude: string[20];
     apikey: string[32];
     
@@ -94,7 +98,7 @@ end;
 
 procedure ScreenOn;
 begin
-    sdmctl := sdmctl or %10;
+    sdmctl := sdmctl or %00100010;
 end;
 
 procedure MergeStr(var s1:string;s2:string[40]);
@@ -150,6 +154,10 @@ begin
     getLine[0] := #0;
     MergeStr(getLine, city);    
     MergeStr(getLine, ', ');
+    if showRegion then begin
+        MergeStr(getLine, region_code);
+        MergeStr(getLine, ', ');
+    end;
     MergeStr(getLine, country_code);
     if Length(getLine) > 40 then setLength(getLine, 40); 
 end;
@@ -181,6 +189,7 @@ begin
     GetJsonKeyValue('city', city);
     utfNormalize(city);
     GetJsonKeyValue('country_code', country_code);
+    GetJsonKeyValue('region_code', region_code);
     if isCCImperial(country_code) then units := imperial;
     GetJsonKeyValue('latitude', latitude);
     GetJsonKeyValue('longitude', longitude);
@@ -231,14 +240,33 @@ begin
     MergeStr(s, #13#10'Cache-Control: no-cache;'#13#10#13#10);
 end;
 
+function PercentEscape(var s:string):string[50];
+var cur:byte;
+begin
+    result[0] := #0;
+    cur := 1;
+    while cur<=Length(s) do begin
+        case s[cur] of
+            ' ': MergeStr(result,'%20');
+            else begin
+                Inc(result[0]);
+                result[byte(result[0])] := s[cur];
+            end;
+        end;
+        Inc(cur);
+    end;
+end;
+
 procedure ComposeGetHeader(var s:string; askFor:byte);
 begin
-    s:='GET /data/2.5/';
     if askFor = CALL_CHECKCITY then begin
-        MergeStr(s,'weather?q=');
-        MergeStr(s,city);
+        s:='GET /geocode/v1/json?key=c99982467d084722a38807998f450ddd&q=';
+        MergeStr(s,PercentEscape(city));
+        MergeStr(s,'&no_annotations=1&limit=1&language=en');
+        AppendRequestHeaders(s, OC_api);
     end;
     if (askFor = CALL_WEATHER) or (askFor = CALL_FORECAST) then begin
+        s:='GET /data/2.5/';
         MergeStr(s,'onecall?lat=');
         MergeStr(s,latitude);
         MergeStr(s,'&lon=');
@@ -246,23 +274,26 @@ begin
         MergeStr(s,'&exclude=minutely,hourly,alerts');
         if askFor = CALL_WEATHER then MergeStr(s,',daily');
         if askFor = CALL_FORECAST then MergeStr(s,',current');
+        MergeStr(s,'&units=');
+        if units = metric then MergeStr(s,'metric')
+        else MergeStr(s,'imperial');
+        MergeStr(s,'&appid=2e8616654c548c26bc1c86b1615ef7f1');
+        AppendRequestHeaders(s, OW_api);
     end;
-    MergeStr(s,'&units=');
-    if units = metric then MergeStr(s,'metric')
-    else MergeStr(s,'imperial');
-    MergeStr(s,'&appid=2e8616654c548c26bc1c86b1615ef7f1');
-    AppendRequestHeaders(s, OW_api);
+    
 end;
 
 procedure HTTPGet(var api, header:string);
 begin
     tmp:='N:TCP://';
     MergeStr(tmp, api);
-    MergeStr(tmp,':80');
+    MergeStr(tmp,':80'#0);
     ioResult := TCP_Connect(tmp);
+    //writeln(tmp);
     if isIOError then exit;
     TCP_AttachIRQ;
     TCP_SendString(header);
+    //writeln(header);
     ioResult := WaitAndParseRequest;
     if isIOError then exit;
     TCP_DetachIRQ;
@@ -283,27 +314,44 @@ begin
     ParseForecast;
 end;
 
-procedure GetCityLocation;
+function GetCityLocation:boolean;
 begin
+    result := true;
     ComposeGetHeader(getLine, CALL_CHECKCITY);
-    HTTPGet(OW_api, getLine);
-    getLine[0] := #0;
-    if findKeyPos('name') <> 0 then begin
-        GetJsonKeyValue('name', city);
-        UtfNormalize(city);
-        GetJsonKeyValue('country', tmp);
+    HTTPGet(OC_api, getLine);
+    city[0] := #0;
+    tmp[0] := #0;
+    Writeln;
+    if findKeyPos('total_results') <> 0 then begin
+        GetJsonKeyValue('total_results', tmp);
+        if tmp[1] = '1' then begin
+            FollowKey('results');
+            GetJsonKeyValue('city', city);
+            if Length(city) = 0 then GetJsonKeyValue('town', city);
+            UtfNormalize(city);
+            GetJsonKeyValue('ISO_3166-1_alpha-2', country_code);
+            GetJsonKeyValue('state_code', region_code);
+        end;
+        if Length(city) = 0 then begin
+            tmp := '404';
+            getLine := 'City not found';
+            exit;
+        end;
+        jsonStart := jsonRoot;
+        FollowKey('geometry');
         GetJsonKeyValue('lat', latitude);
-        GetJsonKeyValue('lon', longitude);
+        GetJsonKeyValue('lng', longitude);
+    end else begin
+        tmp := '400';
+        getLine := 'Communication error';
+        result := false;
     end;
-    if findKeyPos('message') <> 0 then begin
-        GetJsonKeyValue('message', getLine);
-        GetJsonKeyValue('cod', tmp);
-    end;
+    jsonStart := jsonRoot;
 end;
 
 procedure GetIPLocation;
 begin
-    getLine:='GET /check?access_key=9ba846d99b9d24288378762533e00318&fields=ip,country_code,city,latitude,longitude';
+    getLine:='GET /check?access_key=9ba846d99b9d24288378762533e00318&fields=ip,region_code,country_code,city,latitude,longitude';
     AppendRequestHeaders(getLine, IP_api);
     HTTPGet(IP_api, getLine);
     ParseLocation;
@@ -470,7 +518,8 @@ begin
 end;
 
 procedure PromptLocation;
-var foundLocation:boolean;
+var reqOK,foundLocation:boolean;
+    
 begin
     foundLocation := false;
     CursorOn;
@@ -478,7 +527,7 @@ begin
         Writeln('Search for city,country');
         Writeln('example: PARIS,FR');
         Readln(city);
-        GetCityLocation;
+        reqOk := GetCityLocation;
         if Length(city) <> 0 then begin
             foundLocation := true; 
             showLocation;
@@ -487,6 +536,7 @@ begin
             Writeln(getLine);
             Writeln('Try Again!');
             Writeln;
+            if not reqOk then DumpJson;
         end;
     until foundLocation;
     CursorOff;
@@ -915,9 +965,9 @@ begin
     if statusDelay < STATUS_TIME then Inc(statusDelay);
     if statusDelay = STATUS_TIME then begin 
         Inc(statusDelay);
+
         if page = PAGE_WEATHER then begin
-            Gotoxy(1,9);
-            DelLine;
+            FillByte(pointer(VRAM + (41 * 40) + (9 * 80) + (8 * 40)),40,0);
             Gotoxy(2,9);
             Write('Time Zone: GMT');
             tz := timezone div 3600;
@@ -929,8 +979,7 @@ begin
             menuColor := cityColor;
             timeShown := true;
         end else begin
-            Gotoxy(1,9);
-            DelLine;
+            FillByte(pointer(VRAM + (41 * 40) + (9 * 80) + (8 * 40)),40,0);
             MergeCityWithCC;
             Gotoxy(21-(Length(getLine) shr 1), 9);
             Writeln(getLine);
@@ -1049,6 +1098,7 @@ begin
                 'r', 'R': UpdateWeather;
                 'u', 'U': ChangeUnits;
                 'f', 'F': ShowForecast;
+                'c', 'C': begin showRegion := not showRegion; ShowWeather; end;
                 else ShowMenu;
             end
         else                               // forecast page
