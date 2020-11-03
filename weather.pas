@@ -1,25 +1,46 @@
 program weather;
 {$librarypath '../blibs/'}
 // get your blibs here: https://gitlab.com/bocianu/blibs
-uses atari, sysutils, crt, b_crt, fn_tcp, fn_sio;
+uses atari, sysutils, crt, b_crt, fn_tcp, fn_sio, sio, fn_cookies;
 {$r resources.rc}
+{$i-}
 
 const
 {$i const.inc}
 {$i datetime.inc}
 
-type Tunits = (metric, imperial);
+type Tunits = (metric, imperial, unknown);
+
+type TOptions = record
+        apiKeyOW: string[32];
+        refreshInterval: byte;
+        units: Tunits;
+        showRegion: boolean;
+        keepLocation: boolean;
+end;        
+
+type TLocation = record
+        city: string[40];
+        r_code: string[2];
+        c_code: string[2];
+        lat: string[8];
+        lon: string[8]; 
+end;
+
+const
+    APPKEY_CREATOR_ID = $b0c1;
+    APPKEY_APP_ID = $1;
+    APPKEY_CONFIG_KEY = $c0;
+//    APPKEY_LOCATION_KEY = $10;
+
 
 var IP_api: string[15] = 'api.ipstack.com';
     OW_api: string[22] = 'api.openweathermap.org';
     OC_api: string[20] = 'api.opencagedata.com';
     
     getLine: string;    
-    ioResult: byte;
     responseBuffer: array [0..4095] of byte absolute JSON_BUFFER;
-
-    units:TUnits;
-    showRegion: boolean = false;
+    
     imperialCCodes: array [0..7] of string[2] = ('US', 'GB', 'IN', 'IE', 'CA', 'AU', 'HK', 'NZ');
     windDir: array [0..7] of string[2] = ('N ', 'NE', 'E ', 'SE', 'S ', 'SW', 'W ', 'NW');
     monthNames: array [0..11] of string[5] = (' Jan ', ' Feb ', ' Mar ', ' Apr ', ' May ', ' Jun' , ' Jul ', ' Aug ', ' Sep ',' Oct ',' Nov ',' Dec ');
@@ -30,12 +51,12 @@ var IP_api: string[15] = 'api.ipstack.com';
     country_code: string[3];
     region_code: string[3];
     longitude, latitude: string[20];
-    apikey: string[32];
+    defaultApiKey: string[32] = '2e8616654c548c26bc1c86b1615ef7f1';
     
     descDir, descOffset, descScroll, descHSC: byte;
 
     curDate, sunriseDate, sunsetDate: TDateTime;
-    refreshCounter, unixTime: cardinal;
+    refreshCounter, refreshFrames, unixTime: cardinal;
     timezone: integer;
     
     forecastPtrs: array [0..7] of word;
@@ -84,10 +105,13 @@ var IP_api: string[15] = 'api.ipstack.com';
     fps: byte;
     colors: array [0..0] of byte;
     cityColor, textColor, menuColor: byte;
+
+    options: TOptions;  
+    savingEnabled: boolean;
   
 {$i interrupts.inc}    
 {$i json.inc}    
-  
+
     
 // ***************************************************** HELPERS    
 
@@ -154,7 +178,7 @@ begin
     getLine[0] := #0;
     MergeStr(getLine, city);    
     MergeStr(getLine, ', ');
-    if showRegion then begin
+    if options.showRegion then begin
         MergeStr(getLine, region_code);
         MergeStr(getLine, ', ');
     end;
@@ -174,6 +198,22 @@ begin
     Inc(tmp[0]);
 end;
 
+procedure SwapUnits;
+begin
+    if options.units = metric then options.units := imperial else options.units := metric;
+end;
+
+function IsKeyCustom: boolean;
+begin
+    result := Length(options.apiKeyOW) = 32;
+end;
+
+procedure UpdateRefreshFrames;
+begin
+    refreshFrames := options.refreshInterval * 3000;
+    refreshCounter := 0;
+end;
+
 // ********************************************************* DATA PARSERS
 
 procedure GetTimezone;
@@ -184,13 +224,11 @@ end;
 
 procedure ParseLocation;
 begin
-    units := metric;
     GetJsonKeyValue('ip', tmp);
     GetJsonKeyValue('city', city);
     utfNormalize(city);
     GetJsonKeyValue('country_code', country_code);
     GetJsonKeyValue('region_code', region_code);
-    if isCCImperial(country_code) then units := imperial;
     GetJsonKeyValue('latitude', latitude);
     GetJsonKeyValue('longitude', longitude);
 end;
@@ -212,13 +250,75 @@ begin
     for i := 0 to 7 do forecastPtrs[i] := FindIndex(i);
 end;
 
+// ***************************************************** OPTIONS ROUTINES
+
+function LoadOptions: byte;
+begin
+    InitCookie(APPKEY_CREATOR_ID, APPKEY_APP_ID, APPKEY_CONFIG_KEY);
+    result := GetCookie(options);
+end;
+
+function SaveOptions: byte;
+begin
+    InitCookie(APPKEY_CREATOR_ID, APPKEY_APP_ID, APPKEY_CONFIG_KEY);
+    result := $ff;
+    if not IsKeyCustom then options.refreshInterval := DEFAULT_REFRESH;
+    if savingEnabled then result := SetCookie(options, SizeOf(TOptions));
+    if result <> 1 then savingEnabled := false;
+    UpdateRefreshFrames;
+end;
+
+procedure DefaultOptions;
+begin
+    Writeln('Saving defaults');
+    options.apiKeyOW := '';
+    options.refreshInterval := DEFAULT_REFRESH;
+    options.units := unknown;
+    options.showRegion := false;
+    options.keepLocation := false;
+    ioresult := SaveOptions;
+    if ioresult <> 1 then begin
+        Writeln('Error saving options: ', ioresult);
+    end;
+end;
+
+procedure InitOptions; 
+begin
+    savingEnabled := true;
+    Writeln('Initializing options');
+    ioresult := LoadOptions;
+    if ioresult <> 1 then begin
+        writeln('No saved config found');
+        DefaultOptions;
+    end else begin
+        if sizeof(TOptions) <> cookie.len then begin
+            write('Config size mismatch');
+            DefaultOptions;
+        end;
+    end;
+    UpdateRefreshFrames;
+end;
+
 // ***************************************************** NETWORK ROUTINES
 
 function WaitAndParseRequest:byte;
+var blockLen:word;
 begin
-    result := TCP_WaitForData(100);
-    jsonEnd := TCP_bytesWaiting;
-    FN_ReadBuffer(@responseBuffer, jsonEnd);
+    jsonEnd := 0;
+    result := 1;
+    repeat 
+        TCP_bytesWaiting := 0;
+        TCP_GetStatus;
+        //Writeln(TCP_status.errorCode);
+        //Writeln(TCP_bytesWaiting);
+        if TCP_bytesWaiting > 0 then begin
+            blockLen := TCP_bytesWaiting;
+            FN_ReadBuffer(@responseBuffer[jsonEnd], blockLen);
+            jsonEnd := jsonEnd + blockLen;
+        end;
+        pause;
+    until (TCP_bytesWaiting = 0) and (jsonEnd <> 0);
+    result := sioResult;
     jsonRoot := GetJsonRoot;
     jsonStart := jsonRoot;
 end;
@@ -275,9 +375,11 @@ begin
         if askFor = CALL_WEATHER then MergeStr(s,',daily');
         if askFor = CALL_FORECAST then MergeStr(s,',current');
         MergeStr(s,'&units=');
-        if units = metric then MergeStr(s,'metric')
+        if options.units = metric then MergeStr(s,'metric')
         else MergeStr(s,'imperial');
-        MergeStr(s,'&appid=2e8616654c548c26bc1c86b1615ef7f1');
+        MergeStr(s,'&appid=');
+        if IsKeyCustom then MergeStr(s, options.apiKeyOW)
+        else MergeStr(s, defaultApiKey);
         AppendRequestHeaders(s, OW_api);
     end;
     
@@ -289,14 +391,10 @@ begin
     MergeStr(tmp, api);
     MergeStr(tmp,':80'#0);
     ioResult := TCP_Connect(tmp);
-    //writeln(tmp);
     if isIOError then exit;
-    TCP_AttachIRQ;
     TCP_SendString(header);
-    //writeln(header);
     ioResult := WaitAndParseRequest;
     if isIOError then exit;
-    TCP_DetachIRQ;
     TCP_Close;    
 end;
 
@@ -355,8 +453,14 @@ begin
     AppendRequestHeaders(getLine, IP_api);
     HTTPGet(IP_api, getLine);
     ParseLocation;
+    if options.units = unknown then begin
+        if isCCImperial(country_code) then options.units := imperial
+            else options.units := metric;
+        SaveOptions;
+    end;
     Writeln('Your IP: ',tmp);
 end;
+
 
 // ***************************************************** GUI ROUTINES
 
@@ -364,13 +468,13 @@ procedure WriteTime(date: TDateTime);
 var hour:byte;
 begin
     hour := date.hour;
-    if units = imperial then hour := hour24to12(hour) 
+    if options.units = imperial then hour := hour24to12(hour) 
     else Write(' ');
     if hour < 10 then Write(0);
     Write(hour,':');
     if date.minute < 10 then Write(0);
     Write(date.minute);
-    if units = imperial then begin
+    if options.units = imperial then begin
         if date.hour > 12 then Write('pm')
             else Write('am');
     end;
@@ -378,8 +482,8 @@ end;
 
 procedure WriteSpeedUnit;
 begin
-    if units = metric then Write('m/s');
-    if units = imperial then Write('mph');
+    if options.units = metric then Write('m/s')
+        else Write('mph');
 end;
 
 procedure PutBitmap(src,dest:word;w,h:byte);
@@ -506,14 +610,19 @@ begin
     end;
 end;
 
+procedure ShowUnits();
+begin
+    if options.units = metric then Writeln('metric')
+        else Writeln('imperial');
+end;
+
 procedure ShowLocation;
 begin
     Writeln('Location: ', city, ', ', country_code);
     Writeln('latitude: ', latitude);
     Writeln('longitude: ', longitude);
     Write('units: ');
-    if units = metric then Writeln('metric')
-    else Writeln('imperial');
+    ShowUnits;
     Writeln;
 end;
 
@@ -693,7 +802,7 @@ begin
     GetJsonKeyValue('temp', getLine);
     tempLen := 5;
     grade := '^C';
-    if units = imperial then begin
+    if options.units = imperial then begin
         tempLen := 4;
         grade := '^F'
     end;
@@ -705,7 +814,7 @@ begin
     // pressure
     GetJsonKeyValue('pressure', tmp);
     getLine := 'hPa';
-    if units = imperial then begin
+    if options.units = imperial then begin
         getLine := '"Hg';
         ConvertHPA2INHG(tmp);
     end;
@@ -784,7 +893,7 @@ var x:byte;
     grade:string[2];
 begin
     grade := '^C';
-    if units = imperial then grade := '^F';
+    if options.units = imperial then grade := '^F';
     x := column * 10;
 
     Str(curDate.day, getLine);
@@ -821,7 +930,7 @@ begin
 
     GetJsonKeyValue('pressure', getLine);
     tmp := 'hPa';
-    if units = imperial then begin
+    if options.units = imperial then begin
         tmp := '"Hg';
         ConvertHPA2INHG(getLine);
     end;
@@ -939,7 +1048,7 @@ begin
         if curDate.hour = 24 then begin
             curDate.hour := 0;
             // refresh 15 sec after mindnight
-            refreshCounter := REFRESH - (framesPerMinute shr 2);
+            refreshCounter := refreshFrames - (framesPerMinute shr 2);
         end;
     end;
 end;
@@ -1033,12 +1142,92 @@ begin
     ReloadWeather;
 end;
 
+procedure WriteYesNo(yes:boolean);
+begin
+    if yes then Writeln('yes')
+    else Writeln('no');
+end;
+
+procedure ShowOptions;
+begin
+    FillByte(pointer(VRAMTXT + 6*40), 17*40, 0);
+    GotoXY(3,7);
+
+    Writeln('Settings:                           '*);
+    Writeln;
+    
+    Write('U'*'nits: ');
+    ShowUnits;
+    Writeln;
+
+    Write('Show '+'R'*'egion: ');
+    WriteYesNo(options.showRegion);
+    Writeln;
+
+    Write('Save '+'L'*'ocation: ');
+    WriteYesNo(options.keepLocation);
+    Writeln;
+ 
+    Writeln('V'*'isual Theme: default');
+    Writeln;
+ 
+    Writeln('C'*'ustom weather API key:');
+    if IsKeyCustom then Writeln(options.apiKeyOW)
+    else Writeln('- not set -');
+    Writeln;
+
+    Write('Refresh '+'I'*'nterval: ');
+    Write(options.refreshInterval);
+    Write(' minute');
+    if options.refreshInterval > 1 then write('s');
+
+    GotoXY(3,23);
+    Write('Press '+'ESC'*' to return to the weather');
+end;
+
+procedure PromptOptions;
+var c:char;
+begin
+    c:=#0;
+    repeat
+        if keypressed then begin
+            c := ReadKey;
+            case c of
+                'u','U': begin 
+                    SwapUnits;
+                    ShowOptions;
+                end;
+                'r','R': begin 
+                    options.showRegion := not options.showRegion;
+                    ShowOptions;
+                end;
+                'l','L': begin 
+                    options.keepLocation := not options.keepLocation;
+                    ShowOptions;
+                end;
+                //else Write(byte(c));
+            end;
+        end;
+        pause;
+    until c = #27;
+    SaveOptions;
+end;
+
+procedure ChangeOptions;
+begin
+    ShowWelcomeMsg;
+    ShowOptions;
+    PromptOptions;
+    ReloadWeather;
+end;
+
 procedure ChangeUnits;
 begin
-    if units = metric then units := imperial else units := metric;
+    SwapUnits;
     getLine := 'Changing Units';
     ShowHeader;
     ReloadWeather;
+    SaveOptions;
 end;
 
 procedure UpdateWeather;
@@ -1057,16 +1246,28 @@ begin
     ShowForecastPage(0);
 end;
 
+procedure ShowNextPage;
+begin
+    case page of
+        0: ShowForecastPage(1);
+        1: ShowForecastPage(0);
+    end;
+end;
+
+
+
+
+
 // **********************************************************************
 // *******************************************************************************  MAIN
 // **********************************************************************
-
+    
 begin
     portb := $ff;
     hscrol := 8;
-    refreshCounter:=0;
-
     ShowWelcomeMsg;
+    InitOptions;
+
     Writeln('Connecting to ', IP_api);
     Writeln('Checking your ip and location');
     GetIPLocation;
@@ -1085,10 +1286,13 @@ begin
             pause;
             Animate;
             if CRT_SelectPressed then ChangeLocation;
-            if CRT_OptionPressed then ChangeUnits;
+            if CRT_OptionPressed then ChangeOptions;
+            if CRT_StartPressed then 
+                if page = PAGE_WEATHER then ShowForecast
+                    else ShowNextPage;
             atract := 1;
             inc(refreshCounter);
-            if (refreshCounter = REFRESH) and (page = PAGE_WEATHER) then UpdateWeather;
+            if (refreshCounter = refreshFrames) and (page = PAGE_WEATHER) then UpdateWeather;
         until KeyPressed;
 
         // menu key reading
@@ -1098,18 +1302,12 @@ begin
                 'r', 'R': UpdateWeather;
                 'u', 'U': ChangeUnits;
                 'f', 'F': ShowForecast;
-                'c', 'C': begin showRegion := not showRegion; ShowWeather; end;
                 else ShowMenu;
             end
         else                               // forecast page
             case k of
-                'n', 'N': begin
-                    case page of
-                        0: ShowForecastPage(1);
-                        1: ShowForecastPage(0);
-                    end;
-                end;
-                'b', 'B': UpdateWeather            
+                'n', 'N': ShowNextPage;
+                'b', 'B', #27: UpdateWeather            
                 else ShowMenu;
             end;
         
