@@ -16,22 +16,22 @@ type TOptions = record
         refreshInterval: byte;
         units: Tunits;
         showRegion: boolean;
-        keepLocation: boolean;
+        detectLocation: boolean;
 end;        
 
 type TLocation = record
         city: string[40];
-        r_code: string[2];
-        c_code: string[2];
-        lat: string[8];
-        lon: string[8]; 
+        region_code: string[2];
+        country_code: string[2];
+        latitude: string[7];
+        longitude: string[7]; 
 end;
 
 const
     APPKEY_CREATOR_ID = $b0c1;
     APPKEY_APP_ID = $1;
     APPKEY_CONFIG_KEY = $c0;
-//    APPKEY_LOCATION_KEY = $10;
+    APPKEY_LOCATION_KEY = $10;
 
 
 var IP_api: string[15] = 'api.ipstack.com';
@@ -107,6 +107,7 @@ var IP_api: string[15] = 'api.ipstack.com';
     cityColor, textColor, menuColor: byte;
 
     options: TOptions;  
+    location: TLocation;
     savingEnabled: boolean;
   
 {$i interrupts.inc}    
@@ -252,6 +253,45 @@ end;
 
 // ***************************************************** OPTIONS ROUTINES
 
+procedure SetLoadedLocation;
+begin
+    city := location.city;
+    region_code := location.region_code;
+    country_code := location.country_code;
+    latitude := location.latitude;
+    longitude := location.longitude;
+end;
+
+function LoadLocation: byte;
+begin
+    InitCookie(APPKEY_CREATOR_ID, APPKEY_APP_ID, APPKEY_LOCATION_KEY);
+    result := GetCookie(location);
+end;
+
+procedure StrCpyMax(var s1,s2:string; len:byte);
+var slen: byte;
+begin
+    slen := Length(s1);
+    if slen > len then slen := len;
+    Move(@s1[1], @s2[1], slen);
+    s2[0] := char(slen);
+end;
+
+function SaveLocation: byte;
+begin
+    location.city := city;
+    location.region_code := region_code;
+    location.country_code := country_code;
+    StrCpyMax(latitude, location.latitude, 7);
+    StrCpyMax(longitude, location.longitude, 7);
+
+    InitCookie(APPKEY_CREATOR_ID, APPKEY_APP_ID, APPKEY_LOCATION_KEY);
+    result := $ff;
+    if savingEnabled then result := SetCookie(location, SizeOf(TLocation));
+    if result <> 1 then savingEnabled := false;
+end;
+
+
 function LoadOptions: byte;
 begin
     InitCookie(APPKEY_CREATOR_ID, APPKEY_APP_ID, APPKEY_CONFIG_KEY);
@@ -275,7 +315,7 @@ begin
     options.refreshInterval := DEFAULT_REFRESH;
     options.units := unknown;
     options.showRegion := false;
-    options.keepLocation := false;
+    options.detectLocation := false;
     ioresult := SaveOptions;
     if ioresult <> 1 then begin
         Writeln('Error saving options: ', ioresult);
@@ -366,8 +406,7 @@ begin
         AppendRequestHeaders(s, OC_api);
     end;
     if (askFor = CALL_WEATHER) or (askFor = CALL_FORECAST) then begin
-        s:='GET /data/2.5/';
-        MergeStr(s,'onecall?lat=');
+        s:='GET /data/2.5/onecall?lat=';
         MergeStr(s,latitude);
         MergeStr(s,'&lon=');
         MergeStr(s,longitude);
@@ -382,15 +421,20 @@ begin
         else MergeStr(s, defaultApiKey);
         AppendRequestHeaders(s, OW_api);
     end;
-    
+    if askFor = CALL_CHECKKEY then begin
+        s:='GET /data/2.5/onecall?lat=50&lon=20&exclude=daily,minutely,hourly,alerts&appid=';
+        MergeStr(s,tmp);
+        AppendRequestHeaders(s, OW_api);
+    end;
 end;
 
 procedure HTTPGet(var api, header:string);
+var uri:string[60];
 begin
-    tmp:='N:TCP://';
-    MergeStr(tmp, api);
-    MergeStr(tmp,':80'#0);
-    ioResult := TCP_Connect(tmp);
+    uri:='N:TCP://';
+    MergeStr(uri, api);
+    MergeStr(uri,':80'#0);
+    ioResult := TCP_Connect(uri);
     if isIOError then exit;
     TCP_SendString(header);
     ioResult := WaitAndParseRequest;
@@ -623,7 +667,6 @@ begin
     Writeln('longitude: ', longitude);
     Write('units: ');
     ShowUnits;
-    Writeln;
 end;
 
 procedure PromptLocation;
@@ -639,7 +682,7 @@ begin
         reqOk := GetCityLocation;
         if Length(city) <> 0 then begin
             foundLocation := true; 
-            showLocation;
+            ShowLocation;
         end else begin
             Writeln('Request Error : ',tmp);
             Writeln(getLine);
@@ -649,29 +692,6 @@ begin
         end;
     until foundLocation;
     CursorOff;
-end;
-
-procedure WaitForOverride;
-var timeout:byte;
-    counter:byte;
-    change:boolean;
-begin
-    counter := 1;
-    timeout := 4;
-    change := false;
-    Writeln('Press '+'SELECT'*+' to override location');
-    repeat 
-        pause;
-        if CRT_SelectPressed then change := true;
-        dec(counter);
-        if counter = 0 then begin
-            dec(timeout);
-            DelLine; Write(timeout,'...');
-            counter := 50;
-        end;
-    until change or (timeout = 0);
-    DelLine;
-    if change then PromptLocation;
 end;
 
 procedure ClearGfx;
@@ -1139,6 +1159,7 @@ procedure ChangeLocation;
 begin
     ShowWelcomeMsg;
     PromptLocation;
+    SaveLocation;
     ReloadWeather;
 end;
 
@@ -1146,6 +1167,29 @@ procedure WriteYesNo(yes:boolean);
 begin
     if yes then Writeln('yes')
     else Writeln('no');
+end;
+
+procedure ShowCustomKeyRequest;
+begin
+    FillByte(pointer(VRAMTXT + 6*40), 17*40, 0);
+    GotoXY(3,7);
+    Writeln('Warning!                            '*);
+    Writeln;
+    Writeln('To change refresh interval, you need');
+    Writeln('to provide your personal API key,');
+    Writeln('for openweather.org service.');
+    Writeln;
+    Writeln('Just visit openweathermap.org,');
+    Writeln('then '+'sign up'*+' with your email,');
+    Writeln('and get your API key (APPID)');
+    Writeln('in the confirmation message.');
+    Writeln;
+    Writeln('It is so '+'EASY'*' and '+'FREE'*'!!!');
+    Writeln('I really recommend you do it.');     
+
+    GotoXY(3,23);
+    Write('Press '+'ESC'*' to return.');    
+    ReadKey;
 end;
 
 procedure ShowOptions;
@@ -1160,12 +1204,12 @@ begin
     ShowUnits;
     Writeln;
 
-    Write('Show '+'R'*'egion: ');
+    Write('S'*'how Region: ');
     WriteYesNo(options.showRegion);
     Writeln;
 
-    Write('Save '+'L'*'ocation: ');
-    WriteYesNo(options.keepLocation);
+    Write('D'*'etect Location: ');
+    WriteYesNo(options.detectLocation);
     Writeln;
  
     Writeln('V'*'isual Theme: default');
@@ -1176,7 +1220,7 @@ begin
     else Writeln('- not set -');
     Writeln;
 
-    Write('Refresh '+'I'*'nterval: ');
+    Write('R'*'efresh Interval: ');
     Write(options.refreshInterval);
     Write(' minute');
     if options.refreshInterval > 1 then write('s');
@@ -1184,6 +1228,55 @@ begin
     GotoXY(3,23);
     Write('Press '+'ESC'*' to return to the weather');
 end;
+
+function TmpKeyValid: boolean;
+begin
+    result := false;
+    ComposeGetHeader(getLine, CALL_CHECKKEY);
+    HTTPGet(OW_api, getLine);
+    if (FindKeyPos('current') <> 0) then result := true;
+end;
+
+procedure PromptKey;
+begin
+    Gotoxy(3, 18);
+    Write('                                      ');
+    CursorOn;
+    Gotoxy(2, 18);
+    Write(' ');
+    tmp[0]:=#0;
+    Readln(tmp);
+    CursorOff;
+    if Length(tmp) = 0 then begin
+        options.apiKeyOW[0] := #0;
+        ShowOptions;
+        exit;
+    end;
+    if TmpKeyValid then begin
+        Move(@tmp, @options.apiKeyOW, 33);
+        options.apiKeyOW[0] := #32;
+    end else begin
+        Gotoxy(3, 18);
+        Write('Invalid Key - try again.             ');
+    end;
+end;
+
+procedure PromptInterval;
+var interval:cardinal;
+begin
+    Gotoxy(20, 20);
+    Write('                    ');
+    CursorOn;
+    Gotoxy(20, 20);
+    Write(' ');
+    tmp[0]:=#0;
+    Readln(tmp);
+    CursorOff;
+    interval := StrToInt(tmp);
+    if interval > 255 then interval := 255;
+    if interval > 0 then options.refreshInterval := interval;
+end;
+
 
 procedure PromptOptions;
 var c:char;
@@ -1197,14 +1290,23 @@ begin
                     SwapUnits;
                     ShowOptions;
                 end;
-                'r','R': begin 
+                's','S': begin 
                     options.showRegion := not options.showRegion;
                     ShowOptions;
                 end;
-                'l','L': begin 
-                    options.keepLocation := not options.keepLocation;
+                'd','D': begin 
+                    options.detectLocation := not options.detectLocation;
                     ShowOptions;
                 end;
+                'c','C': begin 
+                    PromptKey;
+                    SaveOptions;
+                end;
+                'r','R': begin 
+                    if IsKeyCustom then PromptInterval
+                        else ShowCustomKeyRequest;
+                    ShowOptions;
+                end;                
                 //else Write(byte(c));
             end;
         end;
@@ -1254,25 +1356,37 @@ begin
     end;
 end;
 
-
+procedure SetLocation;
+var ll:byte;
+begin
+    ll := LoadLocation;
+    if options.detectLocation or (ll <> 1) then begin
+        Writeln('Connecting to ', IP_api);
+        Writeln('Checking your ip and location');
+        GetIPLocation;
+        SaveLocation;
+    end else SetLoadedLocation;
+end;
 
 
 
 // **********************************************************************
 // *******************************************************************************  MAIN
 // **********************************************************************
-    
+
 begin
     portb := $ff;
     hscrol := 8;
     ShowWelcomeMsg;
     InitOptions;
-
-    Writeln('Connecting to ', IP_api);
-    Writeln('Checking your ip and location');
-    GetIPLocation;
+    SetLocation;  
     ShowLocation;
-    WaitForOverride;
+    Writeln;
+    Writeln('Press '+'START'*+' to show forecast');
+    Writeln('Press '+'SELECT'*+' to select location');
+    Writeln('Press '+'OPTION'*+' to change settings');
+
+    Pause(50);
 
     Writeln;
     Writeln('Connecting to ', OW_api);
