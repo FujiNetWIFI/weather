@@ -35,3 +35,14 @@ PAGE_WEATHER = 2;
 
 MENU_TIME = 150;
 STATUS_TIME = 250;
+
+C_SHADOW        = 0;
+C_SUN           = 1;
+C_CLOUD         = 2;
+C_SKY_NIGHT     = 3;
+C_SKY_DAY       = 4;
+C_SKY_FORECAST  = 5;
+C_HEAD_NIGHT    = 6;
+C_HEAD_DAY      = 7;
+
+PALLETE_MAX = 7;

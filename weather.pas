@@ -8,31 +8,13 @@ uses atari, sysutils, crt, b_crt, fn_tcp, fn_sio, sio, fn_cookies;
 const
 {$i const.inc}
 {$i datetime.inc}
-
-type Tunits = (metric, imperial, unknown);
-
-type TOptions = record
-        apiKeyOW: string[32];
-        refreshInterval: byte;
-        units: Tunits;
-        showRegion: boolean;
-        detectLocation: boolean;
-end;        
-
-type TLocation = record
-        city: string[40];
-        region_code: string[2];
-        country_code: string[2];
-        latitude: string[7];
-        longitude: string[7]; 
-end;
+{$i types.inc}
 
 const
     APPKEY_CREATOR_ID = $b0c1;
     APPKEY_APP_ID = $1;
     APPKEY_CONFIG_KEY = $c0;
     APPKEY_LOCATION_KEY = $10;
-
 
 var IP_api: string[15] = 'api.ipstack.com';
     OW_api: string[22] = 'api.openweathermap.org';
@@ -99,8 +81,8 @@ var IP_api: string[15] = 'api.ipstack.com';
         $00, $00, $00, $00, $00, $00, $5d, $5e, $5f, $00, $00, $00, $00
     );
 
-    colorsNTSC: array [0..3] of byte = ( $a6, $2c, $0f, $90 );
-    colorsPAL:  array [0..3] of byte = ( $96, $ec, $0f, $80 );
+    colorsNTSC: array [0..PALLETE_MAX] of byte;
+    colorsPAL:  array [0..PALLETE_MAX] of byte;
     framesPerMinute: word;
     fps: byte;
     colors: array [0..0] of byte;
@@ -108,6 +90,7 @@ var IP_api: string[15] = 'api.ipstack.com';
 
     options: TOptions;  
     location: TLocation;
+    theme: TTheme;
     savingEnabled: boolean;
   
 {$i interrupts.inc}    
@@ -316,6 +299,7 @@ begin
     options.units := unknown;
     options.showRegion := false;
     options.detectLocation := false;
+    options.theme := 'DEFAULT.THM';
     ioresult := SaveOptions;
     if ioresult <> 1 then begin
         Writeln('Error saving options: ', ioresult);
@@ -328,11 +312,11 @@ begin
     Writeln('Initializing options');
     ioresult := LoadOptions;
     if ioresult <> 1 then begin
-        writeln('No saved config found');
+        Writeln('No saved config found');
         DefaultOptions;
     end else begin
         if sizeof(TOptions) <> cookie.len then begin
-            write('Config size mismatch');
+            Writeln('Config size mismatch');
             DefaultOptions;
         end;
     end;
@@ -601,7 +585,7 @@ var x,h:byte;
     src,off:word;
 begin
     result := 3;
-    h := 19;
+    h := 20;
     src:= GFX + 74 * 40;
     case c of
         '0'..'9': begin 
@@ -620,12 +604,12 @@ begin
         '^': begin
             x := 10 * 3 + 1;
             dec(result);
-            h := 5;
+            h := 7;
         end;
         '.': begin
             x := 10 * 3 + 1;
             dec(result);
-            h := 3;
+            h := 4;
             off := 40 * 16;
             inc(src, off);
             inc(dest, off)
@@ -633,7 +617,7 @@ begin
         '-': begin
             x := 10 * 3 + 1;
             dec(result);
-            h := 2;
+            h := 4;
             off := 40 * 8;
             inc(src, off);
             inc(dest, off)
@@ -785,14 +769,15 @@ begin
     end;
     framesPerMinute := fps * 60;
 
-    color0 := colors[0];
-    color1 := colors[1];
-    color2 := colors[2];
-    color4 := (colors[3] and $f0);
+    color1 := colors[C_SUN];
+    color2 := colors[C_CLOUD];
+    color4 := colors[C_SKY_NIGHT];
+    color0 := colors[C_HEAD_NIGHT];
+    cityColor := colors[C_HEAD_NIGHT];
 
-    cityColor := 6;
+
     textColor := 15;
-    menuColor := color4;
+    menuColor := 0;
 end;
 
 procedure ShowWeather;
@@ -804,7 +789,11 @@ begin
     InitGfx;
     // set backgrond color based on icon type
     GetJsonKeyValue('icon', tmp);
-    if tmp[3] = 'd' then color4 := (colors[3] and $f0) or $0a;
+    if tmp[3] = 'd' then begin
+        color4 := colors[C_SKY_DAY];
+        color0 := colors[C_HEAD_DAY];
+        cityColor := colors[C_HEAD_DAY];
+    end;
     // icon
     DrawIcon(GetIconPtr(tmp), VRAM + 17 * 40);
 
@@ -996,8 +985,8 @@ begin
     InitGfx;
     InitScroll;
 
-    color0 := colors[0] - 4;
-    color4 := (colors[3] and $f0) or $06;
+    color0 := colors[C_HEAD_NIGHT];
+    color4 := colors[C_SKY_FORECAST];
     cityColor := 2;
 
     column := 0;
@@ -1177,7 +1166,7 @@ begin
     Writeln;
     Writeln('To change refresh interval, you need');
     Writeln('to provide your personal API key,');
-    Writeln('for openweather.org service.');
+    Writeln('for openweathermap.org service.');
     Writeln;
     Writeln('Just visit openweathermap.org,');
     Writeln('then '+'sign up'*+' with your email,');
@@ -1190,6 +1179,80 @@ begin
     GotoXY(3,23);
     Write('Press '+'ESC'*' to return.');    
     ReadKey;
+end;
+
+procedure LoadTheme(var fname:string);
+var fpath:string[16];
+    f: file;
+    len:word;
+begin
+    fpath:='D:';
+    MergeStr(fpath, fname);
+    Assign (f, fpath);
+    Reset(f,1);
+    BlockRead (f, theme,sizeOf(TTheme),len);
+    close(f);
+end;
+
+procedure ApplyTheme;
+var fpath: string[16];
+    len: word;
+    f: file;
+    gfxmem: array [0..0] of byte absolute GFX;
+    fontmem: array [0..0] of byte absolute FONT;
+begin
+    fpath:='D:';
+    MergeStr(fpath, theme.gfx);
+    Assign (f, fpath);
+    Reset(f,1);
+    BlockRead (f, gfxmem,3840 , len);
+    close(f);
+    fpath:='D:';
+    MergeStr(fpath, theme.font);
+    Assign (f, fpath);
+    Reset(f,1);
+    BlockRead (f, fontmem,1024 , len);
+    close(f);
+    Move(theme.colorsNTSC, colorsNTSC, sizeOf(colorsNTSC));
+    Move(theme.colorsPAL, colorsPAL, sizeOf(colorsPAL));
+end;
+
+procedure SelectTheme;
+var Info : TSearchRec;
+    themeNames: array [0..(10*16)-1] of byte;
+    themeId,id: byte;
+    fname: string[16];
+    c:char;
+begin
+    FillByte(pointer(VRAMTXT + 6*40), 17*40, 0);
+    GotoXY(3,7);
+    Writeln('Themes:                             '*);
+    Writeln;
+    themeId := 0;
+        if FindFirst('D:*.THM', faAnyFile, Info) = 0 then begin
+        repeat
+            Move(@Info.Name[0], @themeNames[themeId shl 4], 16);
+            Inc(themeId);
+        until (FindNext(Info) <> 0) or (themeId = 10);
+        FindClose(Info);
+    end;
+    for i:=0 to themeId-1 do begin
+            move(@themeNames[i shl 4],@fname,16);
+            LoadTheme(fname);
+            Write(char(48+i+128),' ');
+            Write(theme.name,' by ',theme.author);
+            Writeln;
+    end;
+    c := readkey;
+    id := byte(c) - 48;
+    if (id >= 0) and (id < themeId) then begin
+        Writeln;
+        Writeln('Loading theme');
+        move(@themeNames[id shl 4],@fname,16);
+        options.theme := fname;
+        LoadTheme(fname);
+        ApplyTheme;
+    end;
 end;
 
 procedure ShowOptions;
@@ -1212,7 +1275,8 @@ begin
     WriteYesNo(options.detectLocation);
     Writeln;
  
-    Writeln('V'*'isual Theme: default');
+    Write('V'*'isual Theme: ');
+    Writeln(options.theme);
     Writeln;
  
     Writeln('C'*'ustom weather API key:');
@@ -1298,6 +1362,11 @@ begin
                     options.detectLocation := not options.detectLocation;
                     ShowOptions;
                 end;
+                'v','V': begin 
+                    SelectTheme;
+                    //LoadTheme;
+                    ShowOptions;
+                end;        
                 'c','C': begin 
                     PromptKey;
                     SaveOptions;
@@ -1379,6 +1448,9 @@ begin
     hscrol := 8;
     ShowWelcomeMsg;
     InitOptions;
+    Writeln('Loading theme');
+    LoadTheme(options.theme);
+    ApplyTheme;
     SetLocation;  
     ShowLocation;
     Writeln;

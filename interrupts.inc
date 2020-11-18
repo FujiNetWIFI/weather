@@ -3,6 +3,26 @@
 procedure dli;assembler;interrupt;
 asm {
     pha ; store registers
+    tya
+    pha
+    
+    ldy #0
+    mwa colors $fe
+    lda ($fe),y
+    sta wsync
+    sta atari.colpf0 
+    
+    mwa #dli1 VDSLST    
+    pla ; restore registers
+    tay
+    pla
+};
+end;
+
+
+procedure dli1;assembler;interrupt;
+asm {
+    pha ; store registers
 
     sta wsync
     mva 712 atari.colpf2 
@@ -19,7 +39,7 @@ asm {
     pha ; store registers
 
     sta wsync
-    mva #$f atari.colpf1 
+    mva #$f atari.colpf1  // text color
     
     mwa #dli3 VDSLST    
     pla ; restore registers
@@ -31,7 +51,7 @@ asm {
     pha ; store registers
 
     sta wsync
-    mva menuColor atari.colpf1 ; change backgroung color to white
+    mva menuColor atari.colpf1   // text color
     
     mwa #dli VDSLST    
     pla ; restore registers
