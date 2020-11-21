@@ -28,5 +28,5 @@
 
 DLIST rcasm dlist.asm
 DLIST2 rcasm dlist2.asm
-UTFTABLE192 rcdata utf2atascii.bin
-LOGO_CHARSET rcdata fnfont.fnt
+UTFTABLE192 rcdata assets/utf2atascii.bin
+LOGO_CHARSET rcdata assets/fnfont.fnt
