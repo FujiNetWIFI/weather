@@ -440,6 +440,16 @@ begin
     ParseForecast;
 end;
 
+procedure TrimAtChar(var s:string;c:char);
+var i:byte;
+begin
+    for i:=1 to Length(s) do 
+        if s[i] = c then begin
+            s[0] := char(i-1);
+            exit;
+        end;
+end; 
+
 function GetCityLocation:boolean;
 begin
     result := true;
@@ -451,9 +461,9 @@ begin
     if findKeyPos('total_results') <> 0 then begin
         GetJsonKeyValue('total_results', tmp);
         if tmp[1] = '1' then begin
-            FollowKey('results');
-            GetJsonKeyValue('city', city);
-            if Length(city) = 0 then GetJsonKeyValue('town', city);
+            GetJsonKeyValue('formatted', city);
+            //if Length(city) = 0 then GetJsonKeyValue('town', city);
+            TrimAtChar(city,',');
             UtfNormalize(city);
             GetJsonKeyValue('ISO_3166-1_alpha-2', country_code);
             GetJsonKeyValue('state_code', region_code);

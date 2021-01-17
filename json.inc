@@ -235,7 +235,7 @@ end;
 
 procedure GetJsonKeyValue(skey:KeyString;var v:string);
 var c: char;
-    inQuotes: boolean;
+    copychar, inQuotes: boolean;
     jptr: word;
 begin
     v[0] := #0;
@@ -245,11 +245,13 @@ begin
     if jptr <> 0 then begin
         repeat
             c := char(responseBuffer[jptr]);
+            copychar := true;
             case c of 
                 '"':
                     begin
                         if not inQuotes then begin
                             inQuotes := true;
+                            copychar := false;
                         end else begin
                             exit;
                         end;
@@ -258,12 +260,15 @@ begin
                     begin
                         if not inQuotes then exit;
                     end;
-            else 
+            end;
+            if copychar then begin
                 Inc(v[0]);
                 v[Length(v)] := c;
+                if Length(v) = 40 then exit;
             end;
+            
             inc(jptr);
-        until jptr >= jsonEnd;
+        until (jptr >= jsonEnd);
     end;
     //Writeln('Key not found: ', skey);
     v[0] := #0;
