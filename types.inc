@@ -6,6 +6,7 @@ type TOptions = record
         units: Tunits;
         showRegion: boolean;
         detectLocation: boolean;
+        maxPrecision: byte;
         theme: string[12];
 end;        
 

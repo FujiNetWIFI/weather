@@ -299,6 +299,7 @@ begin
     options.units := unknown;
     options.showRegion := false;
     options.detectLocation := false;
+    options.maxPrecision := 1;
     options.theme := 'DEFAULT.THM';
     ioresult := SaveOptions;
     if ioresult <> 1 then begin
@@ -513,7 +514,7 @@ begin
     if date.minute < 10 then Write(0);
     Write(date.minute);
     if options.units = imperial then begin
-        if date.hour > 12 then Write('pm')
+        if date.hour >= 12 then Write('pm')
             else Write('am');
     end;
 end;
@@ -793,6 +794,8 @@ end;
 procedure ShowWeather;
 var tempLen:byte;
     grade:string[2];
+    i,decp:byte;
+    aftercoma:boolean;
 begin
     page := PAGE_WEATHER;
     ScreenOff;
@@ -815,10 +818,18 @@ begin
     MergeStr(getLine, ', ');
     MergeStr(getLine, dowNames[curDate.dow]);
     PutCString(getLine, VRAM + 0 * 40, 1,20);
-   
-    
+       
     // temperature
+    decp := 0;
+    aftercoma := false;
     GetJsonKeyValue('temp', getLine);
+    for i:=1 to Length(getLine) do begin
+        if aftercoma then inc(decp);
+        if getLine[i] = '.' then aftercoma:=true;
+    end;
+    
+    if decp > options.maxPrecision then SetLength(getLine, Length(getLine)-(decp-options.maxPrecision));
+    
     tempLen := 5;
     grade := '^C';
     if options.units = imperial then begin
@@ -1299,6 +1310,10 @@ begin
     Write(' minute');
     if options.refreshInterval > 1 then write('s');
 
+    GotoXY(22,9);
+    Write('Decimal ','P'*'laces: ');
+    Write(options.maxPrecision);
+
     GotoXY(3,23);
     Write('Press '+'ESC'*' to return to the weather');
 end;
@@ -1334,6 +1349,23 @@ begin
         Write('Invalid Key - try again.             ');
     end;
 end;
+
+procedure PromptPrecision;
+var prec:shortInt;
+begin
+    Gotoxy(37, 9);
+    Write(' ');
+    CursorOn;
+    Gotoxy(37, 9);
+    Write(' ');
+    tmp[0]:=#0;
+    Readln(tmp);
+    CursorOff;
+    prec := StrToInt(tmp);
+    if prec > 2 then prec := 2;
+    if prec > -1 then options.maxPrecision := prec;    
+end;
+
 
 procedure PromptInterval;
 var interval:cardinal;
@@ -1384,6 +1416,10 @@ begin
                 'r','R': begin 
                     if IsKeyCustom then PromptInterval
                         else ShowCustomKeyRequest;
+                    ShowOptions;
+                end;                
+                'p','P': begin 
+                    PromptPrecision;
                     ShowOptions;
                 end;                
                 //else Write(byte(c));
