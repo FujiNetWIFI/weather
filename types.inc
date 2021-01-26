@@ -8,7 +8,7 @@ type TOptions = record
         detectLocation: boolean;
         theme: string[12];
         maxPrecision: byte;
-        unused: array[0..10];
+        unused: array [0..10] of byte;
 end;        
 
 type TLocation = record
