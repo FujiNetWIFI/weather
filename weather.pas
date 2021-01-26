@@ -298,7 +298,7 @@ begin
     options.refreshInterval := DEFAULT_REFRESH;
     options.units := unknown;
     options.showRegion := false;
-    options.detectLocation := false;
+    options.detectLocation := true;
     options.maxPrecision := 1;
     options.theme := 'DEFAULT.THM';
     ioresult := SaveOptions;
