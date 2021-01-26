@@ -6,8 +6,9 @@ type TOptions = record
         units: Tunits;
         showRegion: boolean;
         detectLocation: boolean;
-        maxPrecision: byte;
         theme: string[12];
+        maxPrecision: byte;
+        unused: array[0..10];
 end;        
 
 type TLocation = record
