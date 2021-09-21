@@ -388,6 +388,7 @@ begin
         s:='GET /geocode/v1/json?key=c99982467d084722a38807998f450ddd&q=';
         MergeStr(s,PercentEscape(city));
         MergeStr(s,'&no_annotations=1&limit=1&language=en');
+        //move(s[0],pointer($8c00),128);
         AppendRequestHeaders(s, OC_api);
     end;
     if (askFor = CALL_WEATHER) or (askFor = CALL_FORECAST) then begin
@@ -404,11 +405,13 @@ begin
         MergeStr(s,'&appid=');
         if IsKeyCustom then MergeStr(s, options.apiKeyOW)
         else MergeStr(s, defaultApiKey);
+        //move(s[0],pointer($8c00),128);
         AppendRequestHeaders(s, OW_api);
     end;
     if askFor = CALL_CHECKKEY then begin
         s:='GET /data/2.5/onecall?lat=50&lon=20&exclude=daily,minutely,hourly,alerts&appid=';
         MergeStr(s,tmp);
+        //move(s[0],pointer($8c00),128);
         AppendRequestHeaders(s, OW_api);
     end;
 end;

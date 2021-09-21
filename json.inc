@@ -247,6 +247,9 @@ begin
             c := char(responseBuffer[jptr]);
             copychar := true;
             case c of 
+				' ': begin
+					if not inQuotes then copychar := false;
+				end;
                 '"':
                     begin
                         if not inQuotes then begin
