@@ -17,7 +17,8 @@ before_script:
   - rm master.zip
   - mv Mad-Pascal-master mp
   - cd mp
-  - fpc -Mdelphi -v -O3 mp.pas
+  - fpc -Mdelphi -v -O3 src/mp.pas
+  - cp src/mp mp
   # and MAD-Assembler
   - wget $MADS_SRC_FILE
   - 7z x -y master.zip 
