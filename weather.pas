@@ -109,7 +109,7 @@ begin
     sdmctl := sdmctl or %00100010;
 end;
 
-procedure MergeStr(var s1:string;s2:string[40]);
+procedure MergeStr(var s1:string;s2:string);
 var l1,l2:byte;
 begin
     l1 := Length(s1);
@@ -330,12 +330,12 @@ function WaitAndParseRequest:byte;
 var blockLen:word;
 begin
     jsonEnd := 0;
+    jsonRoot := 0;
+    jsonStart := 0;
     result := 1;
     repeat 
         TCP_bytesWaiting := 0;
         TCP_GetStatus;
-        //Writeln(TCP_status.errorCode);
-        //Writeln(TCP_bytesWaiting);
         if TCP_bytesWaiting > 0 then begin
             blockLen := TCP_bytesWaiting;
             FN_ReadBuffer(@responseBuffer[jsonEnd], blockLen);
@@ -344,8 +344,6 @@ begin
         pause;
     until (TCP_bytesWaiting = 0) and (jsonEnd <> 0);
     result := sioResult;
-    jsonRoot := GetJsonRoot;
-    jsonStart := jsonRoot;
 end;
 
 function isIOError:boolean;
@@ -356,13 +354,6 @@ begin
         Readkey;
         result := true;
     end;
-end;
-
-procedure AppendRequestHeaders(var s, api:string);
-begin
-    MergeStr(s, ' HTTP/1.1'#13#10'Host: ');
-    MergeStr(s, api);
-    MergeStr(s, #13#10'Cache-Control: no-cache;'#13#10#13#10);
 end;
 
 function PercentEscape(var s:string):string[50];
@@ -382,17 +373,16 @@ begin
     end;
 end;
 
-procedure ComposeGetHeader(var s:string; askFor:byte);
+procedure ComposeQuery(var s:string; askFor:byte);
 begin
     if askFor = CALL_CHECKCITY then begin
-        s:='GET /geocode/v1/json?key=c99982467d084722a38807998f450ddd&q=';
+        s:='/geocode/v1/json?key=c99982467d084722a38807998f450ddd&q=';
         MergeStr(s,PercentEscape(city));
         MergeStr(s,'&no_annotations=1&limit=1&language=en');
-        //move(s[0],pointer($8c00),128);
-        AppendRequestHeaders(s, OC_api);
+       
     end;
     if (askFor = CALL_WEATHER) or (askFor = CALL_FORECAST) then begin
-        s:='GET /data/2.5/onecall?lat=';
+        s:='/data/2.5/onecall?lat=';
         MergeStr(s,latitude);
         MergeStr(s,'&lon=');
         MergeStr(s,longitude);
@@ -405,26 +395,22 @@ begin
         MergeStr(s,'&appid=');
         if IsKeyCustom then MergeStr(s, options.apiKeyOW)
         else MergeStr(s, defaultApiKey);
-        //move(s[0],pointer($8c00),128);
-        AppendRequestHeaders(s, OW_api);
     end;
     if askFor = CALL_CHECKKEY then begin
-        s:='GET /data/2.5/onecall?lat=50&lon=20&exclude=daily,minutely,hourly,alerts&appid=';
+        s:='/data/2.5/onecall?lat=50&lon=20&exclude=daily,minutely,hourly,alerts&appid=';
         MergeStr(s,tmp);
-        //move(s[0],pointer($8c00),128);
-        AppendRequestHeaders(s, OW_api);
     end;
 end;
 
-procedure HTTPGet(var api, header:string);
-var uri:string[60];
+procedure HTTPGet(var api, query:string);
+var uri:string[200];
 begin
-    uri:='N:TCP://';
+    uri:='N:http://';
     MergeStr(uri, api);
-    MergeStr(uri,':80'#0);
+    MergeStr(uri, query);
+    MergeStr(uri,#0#0);
     ioResult := TCP_Connect(uri);
     if isIOError then exit;
-    TCP_SendString(header);
     ioResult := WaitAndParseRequest;
     if isIOError then exit;
     TCP_Close;    
@@ -432,14 +418,14 @@ end;
 
 procedure GetWeather;
 begin
-    ComposeGetHeader(getLine, CALL_WEATHER);
+    ComposeQuery(getLine, CALL_WEATHER);
     HTTPGet(OW_api, getLine);
     ParseWeather;
 end;
 
 procedure GetForecast;
 begin
-    ComposeGetHeader(getLine, CALL_FORECAST);
+    ComposeQuery(getLine, CALL_FORECAST);
     HTTPGet(OW_api, getLine);
     ParseForecast;
 end;
@@ -457,7 +443,7 @@ end;
 function GetCityLocation:boolean;
 begin
     result := true;
-    ComposeGetHeader(getLine, CALL_CHECKCITY);
+    ComposeQuery(getLine, CALL_CHECKCITY);
     HTTPGet(OC_api, getLine);
     city[0] := #0;
     tmp[0] := #0;
@@ -491,8 +477,7 @@ end;
 
 procedure GetIPLocation;
 begin
-    getLine:='GET /check?access_key=9ba846d99b9d24288378762533e00318&fields=ip,region_code,country_code,city,latitude,longitude';
-    AppendRequestHeaders(getLine, IP_api);
+    getLine:='/check?access_key=9ba846d99b9d24288378762533e00318&fields=ip,region_code,country_code,city,latitude,longitude';
     HTTPGet(IP_api, getLine);
     ParseLocation;
     if options.units = unknown then begin
@@ -1324,7 +1309,7 @@ end;
 function TmpKeyValid: boolean;
 begin
     result := false;
-    ComposeGetHeader(getLine, CALL_CHECKKEY);
+    ComposeQuery(getLine, CALL_CHECKKEY);
     HTTPGet(OW_api, getLine);
     if (FindKeyPos('current') <> 0) then result := true;
 end;
@@ -1397,36 +1382,29 @@ begin
             case c of
                 'u','U': begin 
                     SwapUnits;
-                    ShowOptions;
                 end;
                 's','S': begin 
                     options.showRegion := not options.showRegion;
-                    ShowOptions;
                 end;
                 'd','D': begin 
                     options.detectLocation := not options.detectLocation;
-                    ShowOptions;
                 end;
                 'v','V': begin 
                     SelectTheme;
                     //LoadTheme;
-                    ShowOptions;
                 end;        
                 'c','C': begin 
                     PromptKey;
-                    SaveOptions;
                 end;
                 'r','R': begin 
                     if IsKeyCustom then PromptInterval
                         else ShowCustomKeyRequest;
-                    ShowOptions;
                 end;                
                 'p','P': begin 
                     PromptPrecision;
-                    ShowOptions;
                 end;                
-                //else Write(byte(c));
             end;
+			if c <> #27 then ShowOptions;
         end;
         pause;
     until c = #27;
