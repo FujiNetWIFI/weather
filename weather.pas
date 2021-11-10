@@ -109,7 +109,7 @@ begin
     sdmctl := sdmctl or %00100010;
 end;
 
-procedure MergeStr(var s1:string;s2:string[120]);
+procedure MergeStr(var s1:string;s2:string);
 var l1,l2:byte;
 begin
     l1 := Length(s1);
@@ -330,12 +330,12 @@ function WaitAndParseRequest:byte;
 var blockLen:word;
 begin
     jsonEnd := 0;
+    jsonRoot := 0;
+    jsonStart := 0;
     result := 1;
     repeat 
         TCP_bytesWaiting := 0;
         TCP_GetStatus;
-        //Writeln(TCP_status.errorCode);
-        //Writeln(TCP_bytesWaiting);
         if TCP_bytesWaiting > 0 then begin
             blockLen := TCP_bytesWaiting;
             FN_ReadBuffer(@responseBuffer[jsonEnd], blockLen);
@@ -344,8 +344,6 @@ begin
         pause;
     until (TCP_bytesWaiting = 0) and (jsonEnd <> 0);
     result := sioResult;
-    jsonRoot := GetJsonRoot;
-    jsonStart := jsonRoot;
 end;
 
 function isIOError:boolean;
@@ -381,6 +379,7 @@ begin
         s:='/geocode/v1/json?key=c99982467d084722a38807998f450ddd&q=';
         MergeStr(s,PercentEscape(city));
         MergeStr(s,'&no_annotations=1&limit=1&language=en');
+       
     end;
     if (askFor = CALL_WEATHER) or (askFor = CALL_FORECAST) then begin
         s:='/data/2.5/onecall?lat=';
@@ -404,15 +403,14 @@ begin
 end;
 
 procedure HTTPGet(var api, query:string);
-var uri:string[120];
+var uri:string[200];
 begin
-    uri:='N:HTTP://';
+    uri:='N:http://';
     MergeStr(uri, api);
     MergeStr(uri, query);
-    MergeStr(uri,'/'#0);
+    MergeStr(uri,#0#0);
     ioResult := TCP_Connect(uri);
     if isIOError then exit;
-    //TCP_SendString(header);
     ioResult := WaitAndParseRequest;
     if isIOError then exit;
     TCP_Close;    
@@ -1384,36 +1382,29 @@ begin
             case c of
                 'u','U': begin 
                     SwapUnits;
-                    ShowOptions;
                 end;
                 's','S': begin 
                     options.showRegion := not options.showRegion;
-                    ShowOptions;
                 end;
                 'd','D': begin 
                     options.detectLocation := not options.detectLocation;
-                    ShowOptions;
                 end;
                 'v','V': begin 
                     SelectTheme;
                     //LoadTheme;
-                    ShowOptions;
                 end;        
                 'c','C': begin 
                     PromptKey;
-                    SaveOptions;
                 end;
                 'r','R': begin 
                     if IsKeyCustom then PromptInterval
                         else ShowCustomKeyRequest;
-                    ShowOptions;
                 end;                
                 'p','P': begin 
                     PromptPrecision;
-                    ShowOptions;
                 end;                
-                //else Write(byte(c));
             end;
+			if c <> #27 then ShowOptions;
         end;
         pause;
     until c = #27;
