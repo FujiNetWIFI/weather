@@ -8,13 +8,10 @@
  *
  */
 
-#include "init.h"
 #include "welcome.h"
-#include "options.h"
+#include "screen.h"
 
-void main(void)
+void welcome(void)
 {
-  init();
-  welcome();
-  options();
+  screen_welcome();
 }

@@ -8,13 +8,9 @@
  *
  */
 
-#include "init.h"
-#include "welcome.h"
-#include "options.h"
+#ifndef INIT_H
+#define INIT_H
 
-void main(void)
-{
-  init();
-  welcome();
-  options();
-}
+void init(void);
+
+#endif /* INIT_H */

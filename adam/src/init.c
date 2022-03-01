@@ -8,13 +8,9 @@
  *
  */
 
-#include "init.h"
-#include "welcome.h"
-#include "options.h"
+#include "screen.h"
 
-void main(void)
+void init(void)
 {
-  init();
-  welcome();
-  options();
+  screen_init();
 }

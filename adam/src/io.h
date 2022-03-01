@@ -8,13 +8,12 @@
  *
  */
 
-#include "init.h"
-#include "welcome.h"
+#ifndef IO_H
+#define IO_H
+
+#include <stdbool.h>
 #include "options.h"
 
-void main(void)
-{
-  init();
-  welcome();
-  options();
-}
+bool io_options_load(Options *o);
+bool io_options_save(Options *o);
+#endif /* IO_H */
