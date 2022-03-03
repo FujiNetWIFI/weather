@@ -14,6 +14,9 @@
 #include <stdbool.h>
 #include "options.h"
 
-bool io_options_load(Options *o);
-bool io_options_save(Options *o);
+bool io_options_load(OptionsData *o);
+bool io_options_save(OptionsData *o);
+bool io_location_get_from_ip(char *c);
+bool io_weather(char *j);
+
 #endif /* IO_H */

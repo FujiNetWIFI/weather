@@ -12,8 +12,10 @@
 #define APPKEY_CONFIG_KEY 0xC0
 #define APPKEY_LOCATION_KEY 0x10
 
-const char ip_api[] = "api.ipstack.com";
-const char ow_api[] = "api.openweathermap.org";
-const char oc_api[] = "api.opencagedata.com";
+#define DEFAULT_REFRESH 120
+
+#define IP_API "api.ipstack.com"
+#define OW_API "api.openweathermap.org"
+#define OC_API "api.opencagedata.com"
 
 #endif /* CONSTANTS_H */

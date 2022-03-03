@@ -131,10 +131,6 @@ void screen_init(void)
 {
   void *param = &udgs;
 
-  console_ioctl(IOCTL_GENCON_SET_UDGS,&param);
-
-  eos_write_vdp_register(1,0xE3);
-  msx_vwrite(spritedata,0x3800,sizeof(spritedata));
   clrscr();
 }
 
@@ -403,4 +399,36 @@ void screen_options_init_not_found(void)
 {
   smartkeys_display(NULL,NULL,NULL,NULL,NULL,NULL);
   smartkeys_status("\n  NO OPTIONS FOUND, USING DEFAULTS.");
+}
+
+void screen_options_could_not_save(void)
+{
+  smartkeys_display(NULL,NULL,NULL,NULL,NULL,NULL);
+  smartkeys_status("\n  COULD NOT SAVE OPTIONS.");
+}
+
+void screen_location_detect(void)
+{
+  smartkeys_display(NULL,NULL,NULL,NULL,NULL,NULL);
+  smartkeys_status("\n  DETECTING YOUR LOCATION...");
+}
+
+void screen_weather_init(void)
+{
+  void param = &udgs;
+  console_ioctl(IOCTL_GENCON_SET_UDGS,&param);
+
+  eos_write_vdp_register(1,0xE3);
+  msx_vwrite(spritedata,0x3800,sizeof(spritedata));
+
+  clrscr();
+
+  smartkeys_display(NULL,NULL,NULL,NULL,NULL,NULL);
+  smartkeys_status("\n  RETRIEVING WEATHER INFORMATION...");
+}
+
+void screen_weather_could_not_get()
+{
+  smartkeys_display(NULL,NULL,NULL,NULL,NULL,NULL);
+  smartkeys_status("\n  COULD NOT RETRIEVE WEATHER DATA.");
 }

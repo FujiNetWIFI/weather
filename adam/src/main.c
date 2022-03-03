@@ -8,13 +8,16 @@
  *
  */
 
+#include <conio.h>
 #include "init.h"
 #include "welcome.h"
 #include "options.h"
+#include "location.h"
 
 void main(void)
 {
   init();
   welcome();
   options();
+  location();
 }

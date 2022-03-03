@@ -35,6 +35,11 @@ void screen_daily(char *date,
 
 void screen_options_init(void);
 void screen_options_init_not_found(void);
+void screen_options_could_not_save(void);
 
+void screen_location_detect(void);
+
+void screen_weather_init(void);
+void screen_weather_could_not_get(void);
 
 #endif /* SCREEN_H */

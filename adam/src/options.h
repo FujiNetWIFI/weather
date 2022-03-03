@@ -20,7 +20,7 @@ IMPERIAL,
    UNKNOWN
   } Units;
 
-typedef struct _options
+typedef struct _optionsdata
 {
   char apiKeyOW[32];
   unsigned char refreshInterval;
@@ -30,17 +30,18 @@ typedef struct _options
   char theme[12];
   unsigned char maxPrecision;
   char unused[10];
-} Options;
+} OptionsData;
 
 typedef struct _location
 {
-  char city[40];
-  char region_code[2];
-  char country_code[2];
-  char latitude[7];
-  char longitude[7];
+  char city[41];
+  char region_code[3];
+  char country_code[3];
+  char latitude[8];
+  char longitude[8];
 } Location;
 
+void options_save(OptionsData *o);
 void options(void);
 
 #endif /* OPTIONS_H */
