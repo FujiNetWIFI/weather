@@ -34,6 +34,7 @@ void options_defaults(void)
   screen_options_init_not_found();
 
   memset(optData.apiKeyOW,0,sizeof(optData.apiKeyOW));
+  strcpy(optData.apiKeyOW,"2e8616654c548c26bc1c86b1615ef7f1");
   optData.refreshInterval=DEFAULT_REFRESH;
   optData.units=UNKNOWN;
   optData.showRegion=false;

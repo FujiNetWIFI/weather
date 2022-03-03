@@ -1038,7 +1038,6 @@ begin
     move(logo[1*13],pointer(savmsc+40*2+2),13);
     move(logo[2*13],pointer(savmsc+40*3+2),13);
     move(logo[3*13],pointer(savmsc+40*4+2),13);
-    
     Gotoxy(17,3);
     Write('Open Weather client');
     Gotoxy(17,4);

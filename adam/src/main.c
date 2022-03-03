@@ -13,6 +13,7 @@
 #include "welcome.h"
 #include "options.h"
 #include "location.h"
+#include "weather.h"
 
 void main(void)
 {
@@ -20,4 +21,5 @@ void main(void)
   welcome();
   options();
   location();
+  weather();
 }

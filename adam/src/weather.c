@@ -8,6 +8,7 @@
  *
  */
 
+#include <conio.h>
 #include "weather.h"
 #include "options.h"
 #include "location.h"
@@ -24,5 +25,7 @@ void weather(void)
   
   if (!io_weather(json))
     screen_weather_could_not_get();
-  
+
+  faux_parse_json("\"current\":{\"dt\":",0);
+  cprintf("forg %s",json_part);
 }
