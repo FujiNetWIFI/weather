@@ -20,7 +20,7 @@ Location locData;
 
 static char tmp[256];
 
-static const char imperialCCodes[] =
+static const char *imperialCCodes[] =
   {"US","GB","IN","IE","CA","AU","HK","NZ"};
 
 bool location_load(void)

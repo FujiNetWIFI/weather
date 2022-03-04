@@ -378,7 +378,7 @@ void screen_daily(char *date,
   gotoxy(13,7); cprintf("%s",description);
   gotoxy(12,9); cprintf("%s",location);
 
-  sprintf(tmp,"WIND: 10.36 MPH N\nFEELS LIKE: %s\n\nDEW POINT: %s\nVISIBILITY: %s\n\nTIME ZONE: %s",wind,feels,dew,visibility,timezone);
+  sprintf(tmp,"WIND: %s\nFEELS LIKE: %s\n\nDEW POINT: %s\nVISIBILITY: %s\n\nTIME ZONE: %s",wind,feels,dew,visibility,timezone);
   smartkeys_puts(0,96,tmp);
 
   sprintf(tmp,"SUNRISE: %s\nSUNSET: %s\n\nHUMIDITY: %s\nCLOUDS: %s\n\nTIME: %s",sunrise,sunset,humidity,clouds,time);
