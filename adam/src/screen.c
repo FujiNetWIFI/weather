@@ -357,8 +357,15 @@ void screen_daily(char *date,
 		  unsigned char backgroundColor,
 		  bool dn)
 {
+  void *param = &udgs;
+
+  console_ioctl(IOCTL_GENCON_SET_UDGS,&param);
   msx_color(foregroundColor,backgroundColor,backgroundColor);
   clrscr();
+
+  eos_write_vdp_register(1,0xE3);
+  msx_vwrite(spritedata,0x3800,sizeof(spritedata));
+
   smartkeys_display(NULL,NULL,"LOCATION","  SHOW\nFORECAST","  SHOW\n CELSIUS"," REFRESH");
   smartkeys_status("\n  DAILY VIEW");
 
@@ -417,14 +424,8 @@ void screen_location_detect(void)
 
 void screen_weather_init(void)
 {
-  void param = &udgs;
-  console_ioctl(IOCTL_GENCON_SET_UDGS,&param);
-
-  eos_write_vdp_register(1,0xE3);
-  msx_vwrite(spritedata,0x3800,sizeof(spritedata));
-
   clrscr();
-
+    
   smartkeys_display(NULL,NULL,NULL,NULL,NULL,NULL);
   smartkeys_status("\n  RETRIEVING WEATHER INFORMATION...");
 }

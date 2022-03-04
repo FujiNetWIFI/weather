@@ -28,7 +28,7 @@ char date_txt[32];
 char sunrise_txt[16];
 char sunset_txt[16];
 char time_txt[16];
-char temp[16];
+char temp[24];
 char timezone[16];
 char feels_like[16];
 unsigned short timezone_offset;
@@ -66,10 +66,7 @@ void weather_time(char *c, unsigned long d)
 }
 
 void weather(void)
-{
-  
-  screen_init();
-  
+{  
   if (!io_weather(json))
     screen_weather_could_not_get();
 
@@ -86,7 +83,7 @@ void weather(void)
   sunset=atol(json_part);
 
   faux_parse_json("\"temp\":",0);
-  sprintf(temp,"%s  deg %c",json_part,optData.units == IMPERIAL ? 'F' : 'C');
+  sprintf(temp,"%s*%c",json_part,optData.units == IMPERIAL ? 'F' : 'C');
 
   faux_parse_json("\"feels_like\":",0);
   sprintf(feels_like,"%s deg %c",json_part,optData.units == IMPERIAL ? 'F' : 'C');
@@ -130,5 +127,4 @@ void weather(void)
   sprintf(wind_txt,"%s %s",wind_speed,wind_dir);
   
   screen_daily(date_txt,icon,temp,pressure,description,"DENTON, US",wind_txt,feels_like,dew_point,visibility,timezone,sunrise_txt,sunset_txt,humidity,clouds,time_txt,1,7,true);
-  cprintf("icon: %d",icon);
 }

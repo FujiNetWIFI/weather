@@ -14,7 +14,7 @@
 const unsigned char daysInMonth[] =
   {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
-const char monthNames[] =
+const char *monthNames[] =
   {
    "JAN",
    "FEB",
@@ -30,7 +30,7 @@ const char monthNames[] =
    "DEC"
   };
 
-const char dowNames[] =
+const char *dowNames[] =
   {
    "SUN",
    "MON",
@@ -101,10 +101,10 @@ void timestamp(unsigned long t, Timestamp *ts)
 
 const char *time_month(unsigned char month)
 {
-  return &monthNames[month];
+  return monthNames[month-1];
 }
 
 const char *time_dow(unsigned char dow)
 {
-  return &dowNames[dow];
+  return dowNames[dow];
 }

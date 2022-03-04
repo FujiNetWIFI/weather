@@ -155,7 +155,7 @@ bool io_location_get_from_ip(char *c)
   co.aux2 = 0;
   strcpy(co.url,"N:HTTP://");
   strcat(co.url,IP_API);
-  strcat(co.url,"/check?access_key=9ba846d99b9d24288378762533e00318&fields=ip,region_code,country_code,city,latitude,longitude");
+  strcat(co.url,"/check?access_key=d05a249425c32e0b231ba79e3f9af478&fields=ip,region_code,country_code,city,latitude,longitude");
 
   // Do open
   res = eos_write_character_device(NET_DEV,co,sizeof(co));
