@@ -32,15 +32,6 @@ typedef struct _optionsdata
   char unused[10];
 } OptionsData;
 
-typedef struct _location
-{
-  char city[41];
-  char region_code[3];
-  char country_code[3];
-  char latitude[8];
-  char longitude[8];
-} Location;
-
 void options_save(OptionsData *o);
 void options(void);
 

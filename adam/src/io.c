@@ -81,6 +81,60 @@ bool io_options_save(OptionsData *o)
   return eos_write_character_device(FUJI_DEV,ak,sizeof(ak)) == 0x80;
 }
 
+bool io_location_load(Location *o)
+{
+  bool ret;
+  struct
+  {
+    unsigned char cmd;
+    unsigned short creator;
+    unsigned char app;
+    unsigned char key;
+  } ak;
+  
+  ak.cmd = 0xDD;
+  ak.creator = APPKEY_CREATOR_ID;
+  ak.app = APPKEY_APP_ID;
+  ak.key = APPKEY_LOCATION_KEY;
+  
+  eos_write_character_device(FUJI_DEV,ak,sizeof(ak));
+  if (eos_read_character_device(FUJI_DEV,response,1024) == 0x80)
+    {
+      DCB *dcb = eos_find_dcb(FUJI_DEV);
+
+      if (dcb->len == 1)
+	return false;
+      
+      memcpy(o,response,sizeof(Location));
+      ret=true;
+    }
+  else
+    ret=false;
+
+  return ret;								 
+}  
+
+bool io_location_save(Location *o)
+{
+  bool ret;
+  struct
+  {
+    unsigned char cmd;
+    unsigned short creator;
+    unsigned char app;
+    unsigned char key;
+    char data[64];
+  } ak;
+
+  ak.cmd = 0xDE;
+  ak.creator = APPKEY_CREATOR_ID;
+  ak.app = APPKEY_APP_ID;
+  ak.key = APPKEY_LOCATION_KEY;
+  memcpy(ak.data,o,sizeof(Location));
+
+  return eos_write_character_device(FUJI_DEV,ak,sizeof(ak)) == 0x80;
+}
+
 bool io_location_get_from_ip(char *c)
 {
   unsigned char res;

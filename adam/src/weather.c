@@ -130,5 +130,5 @@ void weather(void)
   sprintf(wind_txt,"%s %s",wind_speed,wind_dir);
   
   screen_daily(date_txt,icon,temp,pressure,description,"DENTON, US",wind_txt,feels_like,dew_point,visibility,timezone,sunrise_txt,sunset_txt,humidity,clouds,time_txt,1,7,true);
-  
+  cprintf("icon: %d",icon);
 }

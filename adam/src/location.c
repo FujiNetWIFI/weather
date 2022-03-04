@@ -23,6 +23,17 @@ static char tmp[256];
 static const char imperialCCodes[] =
   {"US","GB","IN","IE","CA","AU","HK","NZ"};
 
+bool location_load(void)
+{
+  return io_location_load(&locData);
+}
+
+bool location_save(void)
+{
+    if (!io_location_save(&locData))
+      screen_options_could_not_save();
+}
+
 bool locationIsImperial(void)
 {
   unsigned char i=0;
@@ -82,6 +93,9 @@ void location_detect(void)
 
 void location(void)
 {
-  if (optData.detectLocation == true)
-    location_detect();
+  if (!location_load())
+    {
+      if (optData.detectLocation == true)
+	location_detect();
+    }
 }
