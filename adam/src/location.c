@@ -88,6 +88,7 @@ void location_detect(void)
 	optData.units = METRIC;
     }
   
+  location_save();
   options_save(optData);
 }
 
