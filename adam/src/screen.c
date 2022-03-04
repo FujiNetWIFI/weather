@@ -11,6 +11,7 @@
 #include <sys/ioctl.h>
 #include <stdbool.h>
 #include "screen.h"
+#include "constants.h"
 
 char tmp[192]; // Temporary for screen formatting
 
@@ -201,14 +202,14 @@ void screen_icon(unsigned char i, bool d)
 {
   switch(i)
     {
-    case 0: // clear sky
+    case ICON_CLEAR_SKY: // clear sky
       // Sun with clouds
       msx_vpoke(0x1b00,0x20);
       msx_vpoke(0x1b01,0x08);
       msx_vpoke(0x1b02,d == true ? 0x00 : 32);
       msx_vpoke(0x1b03,0x0A);
       break;
-    case 1: // few clouds
+    case ICON_FEW_CLOUDS: // few clouds
       msx_vpoke(0x1b00,0x20);
       msx_vpoke(0x1b01,0x08);
       msx_vpoke(0x1b02,0x08);
@@ -219,13 +220,13 @@ void screen_icon(unsigned char i, bool d)
       msx_vpoke(0x1b06,d == true ? 0x04 : 32);
       msx_vpoke(0x1b07,0x0A);
       break;
-    case 2: // Scattered clouds
+    case ICON_SCATTERED_CLOUDS: // Scattered clouds
       msx_vpoke(0x1b00,0x20);
       msx_vpoke(0x1b01,0x08);
       msx_vpoke(0x1b02,0x10);
       msx_vpoke(0x1b03,0x0F);
       break;
-    case 3: // broken clouds
+    case ICON_BROKEN_CLOUDS: // broken clouds
       msx_vpoke(0x1b00,0x20);
       msx_vpoke(0x1b01,0x08);
       msx_vpoke(0x1b02,16);
@@ -236,7 +237,7 @@ void screen_icon(unsigned char i, bool d)
       msx_vpoke(0x1b06,20);
       msx_vpoke(0x1b07,0x01);      
       break;
-    case 4: // shower rain
+    case ICON_SHOWER_RAIN: // shower rain
       msx_vpoke(0x1b00,0x20);
       msx_vpoke(0x1b01,0x08);
       msx_vpoke(0x1b02,56);
@@ -267,7 +268,7 @@ void screen_icon(unsigned char i, bool d)
 	  msx_vpoke(0x1b0b,0x0A);
 	}
       break;
-    case 5: // rain
+    case ICON_RAIN: // rain
       msx_vpoke(0x1b00,0x20);
       msx_vpoke(0x1b01,0x08);
       msx_vpoke(0x1b02,56);
@@ -283,7 +284,7 @@ void screen_icon(unsigned char i, bool d)
       msx_vpoke(0x1b0a,4);
       msx_vpoke(0x1b0b,0x0A);
       break;
-    case 6: // thunderstorm
+    case ICON_THUNDERSTORM: // thunderstorm
       msx_vpoke(0x1b00,0x20);
       msx_vpoke(0x1b01,0x08);
       msx_vpoke(0x1b02,48);
@@ -305,7 +306,7 @@ void screen_icon(unsigned char i, bool d)
       msx_vpoke(0x1b0f,0x04);
       break;
 
-    case 7: // snow
+    case ICON_SNOW: // snow
       msx_vpoke(0x1b00,0x20);
       msx_vpoke(0x1b01,0x08);
       msx_vpoke(0x1b02,60);
@@ -321,7 +322,7 @@ void screen_icon(unsigned char i, bool d)
       msx_vpoke(0x1b0a,20);
       msx_vpoke(0x1b0b,0x01);      
 
-    case 8: // mist
+    case ICON_MIST: // mist
       msx_vpoke(0x1b00,0x20);
       msx_vpoke(0x1b01,0x08);
       msx_vpoke(0x1b02,28);

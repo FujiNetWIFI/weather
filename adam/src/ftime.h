@@ -8,10 +8,10 @@
  *
  */
 
-#ifndef TIME_H
-#define TIME_H
+#ifndef FTIME_H
+#define FTIME_H
 
-typedef struct _time
+typedef struct _ftime
 {
   unsigned short year;
   unsigned char month;
@@ -23,5 +23,7 @@ typedef struct _time
 } Timestamp;
 
 void timestamp(unsigned long t, Timestamp *ts);
+const char *time_month(unsigned char month);
+const char *time_dow(unsigned char dow);
 
-#endif /* TIME_H */
+#endif /* FTIME_H */

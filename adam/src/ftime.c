@@ -9,10 +9,37 @@
  */
 
 #include <stdbool.h>
-#include "time.h"
+#include "ftime.h"
 
 const unsigned char daysInMonth[] =
   {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+
+const char monthNames[] =
+  {
+   "JAN",
+   "FEB",
+   "MAR",
+   "APR",
+   "MAY",
+   "JUN",
+   "JUL",
+   "AUG",
+   "SEP",
+   "OCT",
+   "NOV",
+   "DEC"
+  };
+
+const char dowNames[] =
+  {
+   "SUN",
+   "MON",
+   "TUE",
+   "WED",
+   "THU",
+   "FRI",
+   "SAT"
+  };
 
 void timestamp(unsigned long t, Timestamp *ts)
 {
@@ -71,4 +98,14 @@ void timestamp(unsigned long t, Timestamp *ts)
   ts->month = m;
   ts->year = y;
   ts->dow = dow;
+}
+
+const char *time_month(unsigned char month)
+{
+  return monthNames[month];
+}
+
+const char *time_dow(unsigned char dow)
+{
+  return dowNames[dow];
 }
