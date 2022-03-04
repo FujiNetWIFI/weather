@@ -43,21 +43,20 @@ const char dowNames[] =
 
 void timestamp(unsigned long t, Timestamp *ts)
 {
-  bool leap;
-  unsigned short daysInYear;
+  bool leap; unsigned short daysInYear;
   bool done=false;
   unsigned long s=t;
-  unsigned long m=t/60UL;
+  unsigned long m=t/60;
   unsigned long h;
   unsigned long d;
   unsigned short y=1970;
   unsigned char dow=4;
   unsigned char dim=0;
   
-  h=m/60UL;
-  m=m-h*60UL;
-  d=h/24UL;
-  h=h-d*24UL;
+  h=m/60;
+  m=m-h*60;
+  d=h/24;
+  h=h-d*24;
 
   do {
     leap = ((y & 3) == 0 && (y % 100 != 0 || y % 400 == 0));
@@ -102,10 +101,10 @@ void timestamp(unsigned long t, Timestamp *ts)
 
 const char *time_month(unsigned char month)
 {
-  return monthNames[month];
+  return &monthNames[month];
 }
 
 const char *time_dow(unsigned char dow)
 {
-  return dowNames[dow];
+  return &dowNames[dow];
 }

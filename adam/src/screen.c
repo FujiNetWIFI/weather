@@ -100,6 +100,9 @@ const unsigned char udgs[]=
 
    // CELSIUS
    0x03,0x0F,0x0C,0x18,0x18,0x18,0x18,0x18,0x18,0x18,0x18,0x18,0x18,0x0C,0x0F,0x03,0xC0,0xF0,0x30,0x18,0x18,0x00,0x00,0x00,0x00,0x00,0x00,0x18,0x18,0x30,0xF0,0xC0,
+
+   // DEGREE SMALL
+   0x04,0x0A,0x0A,0x04,0x00,0x00,0x00,0x00
   };
 
 const char logo_udgs[] =
@@ -130,8 +133,6 @@ const char logo_udgs[] =
 
 void screen_init(void)
 {
-  void *param = &udgs;
-
   clrscr();
 }
 
@@ -356,7 +357,7 @@ void screen_daily(char *date,
 		  unsigned char backgroundColor,
 		  bool dn)
 {
-  msx_color(15,1,1);
+  msx_color(foregroundColor,backgroundColor,backgroundColor);
   clrscr();
   smartkeys_display(NULL,NULL,"LOCATION","  SHOW\nFORECAST","  SHOW\n CELSIUS"," REFRESH");
   smartkeys_status("\n  DAILY VIEW");
@@ -364,7 +365,7 @@ void screen_daily(char *date,
   msx_color(foregroundColor,backgroundColor,backgroundColor);
   
   gotoxy(8,0); cprintf("%s",date);  
-  screen_icon(icon,false);
+  screen_icon(icon,true);
   screen_bigprint(2,1,temperature);
   gotoxy(23,4); cprintf("%s",pressure);
   gotoxy(13,7); cprintf("%s",description);

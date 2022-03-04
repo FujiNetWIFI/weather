@@ -26,17 +26,20 @@ unsigned long dt, sunrise, sunset;
 
 char date_txt[32];
 char sunrise_txt[16];
-char sunset_txt[16]
-char temp[10];
-char feels_like[10];
+char sunset_txt[16];
+char time_txt[16];
+char temp[16];
+char timezone[16];
+char feels_like[16];
 unsigned short timezone_offset;
 char pressure[14];
-char humidity[10];
-char dew_point[10];
-char clouds[10];
-char visibility[10];
-char wind_speed[10];
+char humidity[16];
+char dew_point[16];
+char clouds[16];
+char visibility[16];
+char wind_speed[16];
 char wind_dir[3];
+char wind_txt[16];
 char description[24];
 unsigned char icon;
 
@@ -65,7 +68,7 @@ void weather_time(char *c, unsigned long d)
 void weather(void)
 {
   
-  screen_weather_init();
+  screen_init();
   
   if (!io_weather(json))
     screen_weather_could_not_get();
@@ -73,6 +76,9 @@ void weather(void)
   faux_parse_json("\"current\":{\"dt\":",0);
   dt=atol(json_part);
 
+  faux_parse_json("\"timezone\":",0);
+  strcpy(timezone,json_part);
+  
   faux_parse_json("\"sunrise\":",0);
   sunrise=atol(json_part);
 
@@ -80,10 +86,10 @@ void weather(void)
   sunset=atol(json_part);
 
   faux_parse_json("\"temp\":",0);
-  sprintf(temp,"%s *%c",json_part,optData.units == IMPERIAL ? 'F' : 'C');
+  sprintf(temp,"%s  deg %c",json_part,optData.units == IMPERIAL ? 'F' : 'C');
 
   faux_parse_json("\"feels_like\":",0);
-  sprintf(feels_like,"%s *%c",json_part,optData.units == IMPERIAL ? 'F' : 'C');
+  sprintf(feels_like,"%s deg %c",json_part,optData.units == IMPERIAL ? 'F' : 'C');
 
   faux_parse_json("\"timezone_offset\":",0);
   timezone_offset=atoi(json_part);
@@ -95,7 +101,7 @@ void weather(void)
   sprintf(humidity,"%s%%",json_part);
 
   faux_parse_json("\"dew_point\":",0);
-  sprintf(dew_point,"%s *%c",json_part,optData.units == IMPERIAL ? 'F' : 'C');
+  sprintf(dew_point,"%s deg %c",json_part,optData.units == IMPERIAL ? 'F' : 'C');
   
   faux_parse_json("\"clouds\":",0);
   sprintf(clouds,"%s%%",json_part);
@@ -120,6 +126,9 @@ void weather(void)
   weather_time(time_txt,dt);
   weather_time(sunrise_txt,sunrise);
   weather_time(sunset_txt,sunset);
+
+  sprintf(wind_txt,"%s %s",wind_speed,wind_dir);
   
-  screen_daily();
+  screen_daily(date_txt,icon,temp,pressure,description,"DENTON, US",wind_txt,feels_like,dew_point,visibility,timezone,sunrise_txt,sunset_txt,humidity,clouds,time_txt,1,7,true);
+  
 }
