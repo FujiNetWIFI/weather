@@ -12,8 +12,12 @@
 #include <stdbool.h>
 #include "screen.h"
 #include "constants.h"
+#include "ftime.h"
+#include "options.h"
 
 char tmp[192]; // Temporary for screen formatting
+
+extern OptionsData optData;
 
 const unsigned char spritedata[]=
   {
@@ -134,6 +138,65 @@ const char logo_udgs[] =
 void screen_init(void)
 {
   clrscr();
+}
+
+void screen_colors(unsigned long d, short offset, unsigned char *fg, unsigned char *bg, bool *dayNight)
+{
+  Timestamp ts;
+
+  timestamp(d+offset, &ts);
+
+  switch (ts.hour)
+    {
+    case 0:
+    case 1:
+    case 2:
+    case 3:
+    case 4:
+      *dayNight=false;
+      *fg=INK_WHITE;
+      *bg=INK_BLACK;
+      break;
+    case 5:
+    case 6:
+    case 7:
+      *dayNight=true;
+      *bg=INK_DARK_BLUE;
+      *fg=INK_WHITE;
+      break;
+    case 8:
+    case 9: 
+    case 10:
+      *dayNight=true;
+      *bg=INK_LIGHT_BLUE;
+      *fg=INK_WHITE;
+      break;
+    case 11:
+    case 12:
+    case 13:
+    case 14:
+    case 15:
+    case 16:
+      *dayNight=true;
+      *bg=INK_CYAN;
+      *fg=INK_BLACK;
+      break;
+    case 17:
+    case 18:
+    case 19:
+      *dayNight=false;
+      *bg=INK_DARK_BLUE;
+      *fg=INK_WHITE;
+      break;
+    case 20:
+    case 21:
+    case 22:
+    case 23:
+      *dayNight=false;
+      *bg=INK_BLACK;
+      *fg=INK_WHITE;
+      break;
+    }
 }
 
 void screen_bigprint_offsets(char *c, unsigned char *c0, unsigned char *c1, unsigned char *c2, unsigned char *c3)
@@ -366,13 +429,18 @@ void screen_daily(char *date,
   eos_write_vdp_register(1,0xE3);
   msx_vwrite(spritedata,0x3800,sizeof(spritedata));
 
-  smartkeys_display(NULL,NULL,"LOCATION","  SHOW\nFORECAST","  SHOW\n CELSIUS"," REFRESH");
+  if (optData.units == IMPERIAL)
+    strcpy(tmp,"  SHOW\n CELSIUS");
+  else
+    strcpy(tmp,"  SHOW\nFARENHEIT");
+  
+  smartkeys_display(NULL,NULL,"LOCATION","  SHOW\nFORECAST",tmp," REFRESH");
   smartkeys_status("\n  DAILY VIEW");
 
   msx_color(foregroundColor,backgroundColor,backgroundColor);
   
   gotoxy(8,0); cprintf("%s",date);  
-  screen_icon(icon,true);
+  screen_icon(icon,dn);
   screen_bigprint(2,1,temperature);
   gotoxy(23,4); cprintf("%s",pressure);
   gotoxy(13,7); cprintf("%s",description);
@@ -424,8 +492,6 @@ void screen_location_detect(void)
 
 void screen_weather_init(void)
 {
-  clrscr();
-    
   smartkeys_display(NULL,NULL,NULL,NULL,NULL,NULL);
   smartkeys_status("\n  RETRIEVING WEATHER INFORMATION...");
 }

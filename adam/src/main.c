@@ -14,12 +14,32 @@
 #include "options.h"
 #include "location.h"
 #include "weather.h"
+#include "constants.h"
+#include "forecast.h"
+
+State state=LOCATION;
 
 void main(void)
 {
   init();
   welcome();
   options();
-  location();
-  weather();
+  
+  while (1)
+  {
+    switch(state)
+      {
+      case LOCATION:
+	location();
+	break;
+      case WEATHER:
+	weather();
+	break;
+      case FORECAST:
+	forecast();
+	break;
+      case DONE:
+	break;
+      }
+  }
 }

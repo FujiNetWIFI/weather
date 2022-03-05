@@ -11,6 +11,8 @@
 
 void screen_init(void);
 
+void screen_colors(unsigned long d, short offset, unsigned char *fg, unsigned char *bg, bool *dayNight);
+
 void screen_welcome(void);
 
 void screen_daily(char *date,

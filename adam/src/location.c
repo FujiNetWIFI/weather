@@ -14,6 +14,7 @@
 #include "options.h"
 #include "screen.h"
 #include "io.h"
+#include "constants.h"
 
 extern OptionsData optData;
 Location locData;
@@ -22,6 +23,8 @@ static char tmp[256];
 
 static const char *imperialCCodes[] =
   {"US","GB","IN","IE","CA","AU","HK","NZ"};
+
+extern State state;
 
 bool location_load(void)
 {
@@ -99,4 +102,7 @@ void location(void)
       if (optData.detectLocation == true)
 	location_detect();
     }
+  
+  if (locData.latitude[0] != 0x00)
+    state=WEATHER;
 }

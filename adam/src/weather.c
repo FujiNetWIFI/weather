@@ -18,11 +18,13 @@
 #include "direction.h"
 #include "icon.h"
 #include "ftime.h"
+#include "input.h"
 
 extern OptionsData optData;
 extern Location locData;
 
 unsigned long dt, sunrise, sunset;
+unsigned short timer=65535;
 
 char date_txt[32];
 char sunrise_txt[16];
@@ -78,7 +80,12 @@ void weather_time(char *c, unsigned long d, short offset)
 }
 
 void weather(void)
-{  
+{
+  bool dayNight;
+  unsigned char bg, fg;
+
+  memset(json,0,sizeof(json));
+  
   if (!io_weather(json))
     screen_weather_could_not_get();
 
@@ -143,6 +150,17 @@ void weather(void)
   sprintf(wind_txt,"%s %s",wind_speed,wind_dir);
 
   sprintf(loc,"%s, %s %s",locData.city,locData.region_code,locData.country_code);
+
+  screen_colors(dt,timezone_offset,&fg,&bg,&dayNight);
   
-  screen_daily(date_txt,icon,temp,pressure,description,loc,wind_txt,feels_like,dew_point,visibility,timezone,sunrise_txt,sunset_txt,humidity,clouds,time_txt,1,7,true);
+  screen_daily(date_txt,icon,temp,pressure,description,loc,wind_txt,feels_like,dew_point,visibility,timezone,sunrise_txt,sunset_txt,humidity,clouds,time_txt,fg,bg,dayNight);
+
+  input_init();
+  
+  while (timer > 0)
+    {
+      input_weather();
+      csleep(1);
+      timer--;
+    }
 }

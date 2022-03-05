@@ -28,4 +28,12 @@
 #define ICON_SNOW             7
 #define ICON_MIST             8
 
+typedef enum _state
+  {
+   WEATHER,
+   FORECAST,
+   LOCATION,
+   DONE
+  } State;
+
 #endif /* CONSTANTS_H */
