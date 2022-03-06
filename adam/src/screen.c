@@ -262,140 +262,142 @@ void screen_bigprint(unsigned char x,unsigned char y,char *c)
     }
 }
 
-void screen_icon(unsigned char i, bool d)
+void screen_icon(unsigned char x, unsigned char y, unsigned char o, unsigned char i, bool d)
 {
+  o *= 4;
+  
   switch(i)
     {
     case ICON_CLEAR_SKY: // clear sky
       // Sun with clouds
-      msx_vpoke(0x1b00,0x20);
-      msx_vpoke(0x1b01,0x08);
-      msx_vpoke(0x1b02,d == true ? 0x00 : 32);
-      msx_vpoke(0x1b03,0x0A);
+      msx_vpoke(0x1b00+o,y);
+      msx_vpoke(0x1b01+o,x);
+      msx_vpoke(0x1b02+o,d == true ? 0x00 : 32);
+      msx_vpoke(0x1b03+o,0x0A);
       break;
     case ICON_FEW_CLOUDS: // few clouds
-      msx_vpoke(0x1b00,0x20);
-      msx_vpoke(0x1b01,0x08);
-      msx_vpoke(0x1b02,0x08);
-      msx_vpoke(0x1b03,0x0F);
+      msx_vpoke(0x1b00+o,y);
+      msx_vpoke(0x1b01+o,x);
+      msx_vpoke(0x1b02+o,0x08);
+      msx_vpoke(0x1b03+o,0x0F);
 
-      msx_vpoke(0x1b04,0x20);
-      msx_vpoke(0x1b05,0x08);
-      msx_vpoke(0x1b06,d == true ? 0x04 : 32);
-      msx_vpoke(0x1b07,0x0A);
+      msx_vpoke(0x1b04+o,y);
+      msx_vpoke(0x1b05+o,x);
+      msx_vpoke(0x1b06+o,d == true ? 0x04 : 32);
+      msx_vpoke(0x1b07+o,0x0A);
       break;
     case ICON_SCATTERED_CLOUDS: // Scattered clouds
-      msx_vpoke(0x1b00,0x20);
-      msx_vpoke(0x1b01,0x08);
-      msx_vpoke(0x1b02,0x10);
-      msx_vpoke(0x1b03,0x0F);
+      msx_vpoke(0x1b00+o,y);
+      msx_vpoke(0x1b01+o,x);
+      msx_vpoke(0x1b02+o,0x10);
+      msx_vpoke(0x1b03+o,0x0F);
       break;
     case ICON_BROKEN_CLOUDS: // broken clouds
-      msx_vpoke(0x1b00,0x20);
-      msx_vpoke(0x1b01,0x08);
-      msx_vpoke(0x1b02,16);
-      msx_vpoke(0x1b03,0x0e);
+      msx_vpoke(0x1b00+o,y);
+      msx_vpoke(0x1b01+o,x);
+      msx_vpoke(0x1b02+o,16);
+      msx_vpoke(0x1b03+o,0x0e);
 
-      msx_vpoke(0x1b04,0x20);
-      msx_vpoke(0x1b05,0x08);
-      msx_vpoke(0x1b06,20);
-      msx_vpoke(0x1b07,0x01);      
+      msx_vpoke(0x1b04+o,y);
+      msx_vpoke(0x1b05+o,x);
+      msx_vpoke(0x1b06+o,20);
+      msx_vpoke(0x1b07+o,0x01);      
       break;
     case ICON_SHOWER_RAIN: // shower rain
-      msx_vpoke(0x1b00,0x20);
-      msx_vpoke(0x1b01,0x08);
-      msx_vpoke(0x1b02,56);
-      msx_vpoke(0x1b03,0x04);
+      msx_vpoke(0x1b00+o,y);
+      msx_vpoke(0x1b01+o,x);
+      msx_vpoke(0x1b02+o,56);
+      msx_vpoke(0x1b03+o,0x04);
 
       if (d == true)
 	{
-	  msx_vpoke(0x1b04,0x20);
-	  msx_vpoke(0x1b05,0x08);
-	  msx_vpoke(0x1b06,16);
-	  msx_vpoke(0x1b07,0x0e);
+	  msx_vpoke(0x1b04+o,y);
+	  msx_vpoke(0x1b05+o,x);
+	  msx_vpoke(0x1b06+o,16);
+	  msx_vpoke(0x1b07+o,0x0e);
 	  
-	  msx_vpoke(0x1b08,0x20);
-	  msx_vpoke(0x1b09,0x08);
-	  msx_vpoke(0x1b0a,20);
-	  msx_vpoke(0x1b0b,0x01);
+	  msx_vpoke(0x1b08+o,y);
+	  msx_vpoke(0x1b09+o,x);
+	  msx_vpoke(0x1b0a+o,20);
+	  msx_vpoke(0x1b0b+o,0x01);
 	}
       else
 	{
-	  msx_vpoke(0x1b04,0x20);
-	  msx_vpoke(0x1b05,0x08);
-	  msx_vpoke(0x1b06,0x08);
-	  msx_vpoke(0x1b07,0x0F);
+	  msx_vpoke(0x1b04+o,y);
+	  msx_vpoke(0x1b05+o,x);
+	  msx_vpoke(0x1b06+o,0x08);
+	  msx_vpoke(0x1b07+o,0x0F);
 	  
-	  msx_vpoke(0x1b08,0x20);
-	  msx_vpoke(0x1b09,0x08);
-	  msx_vpoke(0x1b0a,d == true ? 0x04 : 32);
-	  msx_vpoke(0x1b0b,0x0A);
+	  msx_vpoke(0x1b08+o,y);
+	  msx_vpoke(0x1b09+o,x);
+	  msx_vpoke(0x1b0a+o,d == true ? 0x04 : 32);
+	  msx_vpoke(0x1b0b+o,0x0A);
 	}
       break;
     case ICON_RAIN: // rain
-      msx_vpoke(0x1b00,0x20);
-      msx_vpoke(0x1b01,0x08);
-      msx_vpoke(0x1b02,56);
-      msx_vpoke(0x1b03,0x04);
+      msx_vpoke(0x1b00+o,y);
+      msx_vpoke(0x1b01+o,x);
+      msx_vpoke(0x1b02+o,56);
+      msx_vpoke(0x1b03+o,0x04);
 
-      msx_vpoke(0x1b04,0x20);
-      msx_vpoke(0x1b05,0x08);
-      msx_vpoke(0x1b06,8);
-      msx_vpoke(0x1b07,0x0F);
+      msx_vpoke(0x1b04+o,y);
+      msx_vpoke(0x1b05+o,x);
+      msx_vpoke(0x1b06+o,8);
+      msx_vpoke(0x1b07+o,0x0F);
 
-      msx_vpoke(0x1b08,0x20);
-      msx_vpoke(0x1b09,0x08);
-      msx_vpoke(0x1b0a,4);
-      msx_vpoke(0x1b0b,0x0A);
+      msx_vpoke(0x1b08+o,y);
+      msx_vpoke(0x1b09+o,x);
+      msx_vpoke(0x1b0a+o,4);
+      msx_vpoke(0x1b0b+o,0x0A);
       break;
     case ICON_THUNDERSTORM: // thunderstorm
-      msx_vpoke(0x1b00,0x20);
-      msx_vpoke(0x1b01,0x08);
-      msx_vpoke(0x1b02,48);
-      msx_vpoke(0x1b03,0x0A);
+      msx_vpoke(0x1b00+o,y);
+      msx_vpoke(0x1b01+o,x);
+      msx_vpoke(0x1b02+o,48);
+      msx_vpoke(0x1b03+o,0x0A);
       
-      msx_vpoke(0x1b04,0x20);
-      msx_vpoke(0x1b05,0x08);
-      msx_vpoke(0x1b06,16);
-      msx_vpoke(0x1b07,0x0e);
+      msx_vpoke(0x1b04+o,y);
+      msx_vpoke(0x1b05+o,x);
+      msx_vpoke(0x1b06+o,16);
+      msx_vpoke(0x1b07+o,0x0e);
 
-      msx_vpoke(0x1b08,0x20);
-      msx_vpoke(0x1b09,0x08);
-      msx_vpoke(0x1b0a,20);
-      msx_vpoke(0x1b0b,0x01);      
+      msx_vpoke(0x1b08+o,y);
+      msx_vpoke(0x1b09+o,x);
+      msx_vpoke(0x1b0a+o,20);
+      msx_vpoke(0x1b0b+o,0x01);      
 
-      msx_vpoke(0x1b0c,0x20);
-      msx_vpoke(0x1b0d,0x08);
-      msx_vpoke(0x1b0e,56);
-      msx_vpoke(0x1b0f,0x04);
+      msx_vpoke(0x1b0c+o,y);
+      msx_vpoke(0x1b0d+o,x);
+      msx_vpoke(0x1b0e+o,56);
+      msx_vpoke(0x1b0f+o,0x04);
       break;
 
     case ICON_SNOW: // snow
-      msx_vpoke(0x1b00,0x20);
-      msx_vpoke(0x1b01,0x08);
-      msx_vpoke(0x1b02,60);
-      msx_vpoke(0x1b03,0x0e);
+      msx_vpoke(0x1b00+o,y);
+      msx_vpoke(0x1b01+o,x);
+      msx_vpoke(0x1b02+o,60);
+      msx_vpoke(0x1b03+o,0x0e);
       
-      msx_vpoke(0x1b04,0x20);
-      msx_vpoke(0x1b05,0x08);
-      msx_vpoke(0x1b06,16);
-      msx_vpoke(0x1b07,0x0f);
+      msx_vpoke(0x1b04+o,y);
+      msx_vpoke(0x1b05+o,x);
+      msx_vpoke(0x1b06+o,16);
+      msx_vpoke(0x1b07+o,0x0f);
 
-      msx_vpoke(0x1b08,0x20);
-      msx_vpoke(0x1b09,0x08);
-      msx_vpoke(0x1b0a,20);
-      msx_vpoke(0x1b0b,0x01);      
+      msx_vpoke(0x1b08+o,y);
+      msx_vpoke(0x1b09+o,x);
+      msx_vpoke(0x1b0a+o,20);
+      msx_vpoke(0x1b0b+o,0x01);      
 
     case ICON_MIST: // mist
-      msx_vpoke(0x1b00,0x20);
-      msx_vpoke(0x1b01,0x08);
-      msx_vpoke(0x1b02,28);
-      msx_vpoke(0x1b03,0x0f);
+      msx_vpoke(0x1b00+o,y);
+      msx_vpoke(0x1b01+o,x);
+      msx_vpoke(0x1b02+o,28);
+      msx_vpoke(0x1b03+o,0x0f);
       
-      msx_vpoke(0x1b04,0x20);
-      msx_vpoke(0x1b05,0x08);
-      msx_vpoke(0x1b06,24);
-      msx_vpoke(0x1b07,0x0e);
+      msx_vpoke(0x1b04+o,y);
+      msx_vpoke(0x1b05+o,x);
+      msx_vpoke(0x1b06+o,24);
+      msx_vpoke(0x1b07+o,0x0e);
       break;
     }
 }
@@ -435,12 +437,11 @@ void screen_daily(char *date,
     strcpy(tmp,"  SHOW\nFARENHEIT");
   
   smartkeys_display(NULL,NULL,"LOCATION","  SHOW\nFORECAST",tmp," REFRESH");
-  smartkeys_status("\n  DAILY VIEW");
 
   msx_color(foregroundColor,backgroundColor,backgroundColor);
   
   gotoxy(8,0); cprintf("%s",date);  
-  screen_icon(icon,dn);
+  screen_icon(32,8,0,icon,dn);
   screen_bigprint(2,1,temperature);
   gotoxy(23,4); cprintf("%s",pressure);
   gotoxy(13,7); cprintf("%s",description);
@@ -500,4 +501,26 @@ void screen_weather_could_not_get()
 {
   smartkeys_display(NULL,NULL,NULL,NULL,NULL,NULL);
   smartkeys_status("\n  COULD NOT RETRIEVE WEATHER DATA.");
+}
+
+void screen_forecast_init(void)
+{
+  clrscr();
+  eos_write_vdp_register(1,0xE3);
+  msx_vwrite(spritedata,0x3800,sizeof(spritedata));
+
+  if (optData.units == IMPERIAL)
+    strcpy(tmp,"  SHOW\n CELSIUS");
+  else
+    strcpy(tmp,"  SHOW\nFARENHEIT");
+  
+  smartkeys_display(NULL,"  NEXT\n  PAGE","LOCATION","  SHOW\nFORECAST",tmp," REFRESH");
+
+}
+
+void screen_forecast(unsigned char i, ForecastData *f)
+{
+  screen_icon(8,i*40,i,0,true);
+  gotoxy(4,i*4); cprintf("%16s",f->date);
+
 }

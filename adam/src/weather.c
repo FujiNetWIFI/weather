@@ -84,6 +84,8 @@ void weather(void)
   bool dayNight;
   unsigned char bg, fg;
 
+  timer=65535;
+  
   memset(json,0,sizeof(json));
   
   if (!io_weather(json))

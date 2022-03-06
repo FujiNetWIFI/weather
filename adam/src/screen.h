@@ -8,6 +8,7 @@
 #define SCREEN_H
 
 #include <stdbool.h>
+#include "forecast.h"
 
 void screen_init(void);
 
@@ -43,5 +44,8 @@ void screen_location_detect(void);
 
 void screen_weather_init(void);
 void screen_weather_could_not_get(void);
+
+void screen_forecast_init(void);
+void screen_forecast(unsigned char i, ForecastData *f);
 
 #endif /* SCREEN_H */

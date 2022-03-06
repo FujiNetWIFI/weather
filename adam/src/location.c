@@ -104,5 +104,5 @@ void location(void)
     }
   
   if (locData.latitude[0] != 0x00)
-    state=WEATHER;
+    state=FORECAST;
 }

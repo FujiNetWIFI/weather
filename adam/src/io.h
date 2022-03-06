@@ -21,5 +21,6 @@ bool io_location_load(Location *o);
 bool io_location_save(Location *o);
 bool io_location_get_from_ip(char *c);
 bool io_weather(char *j);
+bool io_forecast(char *j);
 
 #endif /* IO_H */

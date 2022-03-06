@@ -217,3 +217,46 @@ bool io_weather(char *j)
   
   return true;
 }
+
+bool io_forecast(char *j)
+{
+  char units[14];
+  char cc='C';
+  unsigned char res;
+  struct
+  {
+    char cmd;
+    char aux1;
+    char aux2;
+    char url[255];
+  } co;
+
+  if (optData.units == METRIC)
+    strcpy(units,"metric");
+  else if (optData.units == IMPERIAL)
+    strcpy(units,"imperial");
+
+  // Set up open 
+  co.cmd='O';
+  co.aux1=READ_WRITE;
+  co.aux2=0;
+  snprintf(co.url,sizeof(co.url),"N:HTTP://%s//data/2.5/onecall?lat=%s&lon=%s&exclude=minutely,hourly,alerts,current&units=%s&appid=%s",OW_API,locData.latitude,locData.longitude,units,"2e8616654c548c26bc1c86b1615ef7f1");
+
+  // Do open
+  res=eos_write_character_device(NET_DEV,co,sizeof(co));
+
+  if (res != 0x80)
+    return false;
+
+  // Get body
+  while ((res = eos_read_character_device(NET_DEV,response,1024)) == 0x80)
+    {
+      strcat(j,response);
+      memset(response,0,sizeof(response));
+    }
+
+  // Close connection
+  eos_write_character_device(NET_DEV,&cc,1);
+  
+  return true;
+}
