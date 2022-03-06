@@ -2,7 +2,7 @@
 #include <string.h>
 #include "faux_json.h"
 
-unsigned char json[1024], json_part[1024];
+unsigned char json[4096], json_part[4096];
 
 void faux_parse_json(char * keyword, unsigned char which) {
   int i;
