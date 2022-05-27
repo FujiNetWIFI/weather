@@ -13,5 +13,6 @@
 
 void input_init(void);
 void input_weather(void);
+void input_forecast(void);
 
 #endif /* INPUT_H */

@@ -17,6 +17,8 @@
 
 char tmp[192]; // Temporary for screen formatting
 
+unsigned short screen_icon_counter;
+
 extern OptionsData optData;
 
 const unsigned char spritedata[]=
@@ -111,28 +113,38 @@ const unsigned char udgs[]=
 
 const char logo_udgs[] =
   {
-   0xff, 0xff, 0xc0, 0xc0, 0xc0, 0xc0, 0xff, 0xff, 0x18, 0x18, 0x18, 0x18,
-   0x18, 0x18, 0x18, 0x18, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06,
-   0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x18, 0x18, 0x18, 0x18,
-   0x18, 0x19, 0x1b, 0x19, 0xc0, 0xc0, 0xc0, 0xc0, 0xc0, 0xc0, 0xc0, 0x00,
-   0x18, 0x18, 0x1c, 0x0c, 0x0f, 0x07, 0x01, 0x00, 0x06, 0x06, 0x0e, 0x0c,
-   0x3c, 0xf8, 0xe0, 0x00, 0x03, 0x03, 0x03, 0x43, 0xe7, 0x7e, 0x3c, 0x00,
-   0x19, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x00, 0x08, 0x0c, 0x0e, 0x0f,
-   0x0f, 0x0d, 0x8c, 0x0c, 0x01, 0x01, 0x01, 0x01, 0x81, 0xc1, 0xe1, 0x71,
-   0x8f, 0x8f, 0x8c, 0x8c, 0x8c, 0x8c, 0x8f, 0x8f, 0xf3, 0xf3, 0x00, 0x00,
-   0x00, 0x00, 0xf0, 0xf0, 0xff, 0xff, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30,
-   0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0xcc, 0x0c, 0x00, 0x39, 0x1d, 0x0f, 0x07,
-   0x03, 0x01, 0x00, 0x00, 0x8c, 0x8c, 0x8c, 0x8c, 0x8c, 0x8f, 0x8f, 0x00,
-   0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0xf0, 0x00, 0x30, 0x30, 0x30, 0x30,
-   0x30, 0x30, 0x30, 0x00, 0x04, 0x04, 0x04, 0x0e, 0x1f, 0x3f, 0xff, 0x3f,
-   0x7f, 0x3e, 0x1c, 0x1c, 0x22, 0xc1, 0xc1, 0xc1, 0x10, 0x10, 0x10, 0x38,
-   0x7c, 0xfe, 0xff, 0xfe, 0x1f, 0x0e, 0x04, 0x04, 0x04, 0x1f, 0x04, 0x04,
-   0x22, 0x1c, 0x08, 0x08, 0x08, 0xff, 0x08, 0x08, 0x7c, 0x38, 0x38, 0x7c,
-   0xfe, 0xff, 0xfe, 0x7c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x04, 0x1f,
-   0x00, 0x08, 0x08, 0x08, 0x1c, 0x3e, 0x7f, 0xff, 0x00, 0x00, 0x00, 0x00,
-   0x10, 0x10, 0x10, 0xfe, 0x08, 0x08, 0x08, 0x1f, 0x08, 0x00, 0x00, 0x00,
-   0x38, 0x10, 0x10, 0xff, 0x10, 0x10, 0x10, 0x00, 0x10, 0x10, 0x10, 0xfc,
-   0x10, 0x10, 0x00, 0x00
+   0xff, 0xff, 0xc0, 0xc0, 0xc0, 0xc0, 0xff, 0xff,
+   0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18,
+   0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06, 0x06,
+   0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03,
+   0x18, 0x18, 0x18, 0x18, 0x18, 0x19, 0x1b, 0x19,
+   0xc0, 0xc0, 0xc0, 0xc0, 0xc0, 0xc0, 0xc0, 0x00,
+   0x18, 0x18, 0x1c, 0x0c, 0x0f, 0x07, 0x01, 0x00,
+   0x06, 0x06, 0x0e, 0x0c, 0x3c, 0xf8, 0xe0, 0x00,
+   0x03, 0x03, 0x03, 0x43, 0xe7, 0x7e, 0x3c, 0x00,
+   0x19, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x00,
+   0x08, 0x0c, 0x0e, 0x0f, 0x0f, 0x0d, 0x8c, 0x0c,
+   0x01, 0x01, 0x01, 0x01, 0x81, 0xc1, 0xe1, 0x71,
+   0x8f, 0x8f, 0x8c, 0x8c, 0x8c, 0x8c, 0x8f, 0x8f,
+   0xf3, 0xf3, 0x00, 0x00, 0x00, 0x00, 0xf0, 0xf0,
+   0xff, 0xff, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30,
+   0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0xcc, 0x0c, 0x00,
+   0x39, 0x1d, 0x0f, 0x07, 0x03, 0x01, 0x00, 0x00,
+   0x8c, 0x8c, 0x8c, 0x8c, 0x8c, 0x8f, 0x8f, 0x00,
+   0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0xf0, 0x00,
+   0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x00,
+   0x04, 0x04, 0x04, 0x0e, 0x1f, 0x3f, 0xff, 0x3f,
+   0x7f, 0x3e, 0x1c, 0x1c, 0x22, 0xc1, 0xc1, 0xc1,
+   0x10, 0x10, 0x10, 0x38, 0x7c, 0xfe, 0xff, 0xfe,
+   0x1f, 0x0e, 0x04, 0x04, 0x04, 0x1f, 0x04, 0x04,
+   0x22, 0x1c, 0x08, 0x08, 0x08, 0xff, 0x08, 0x08,
+   0x7c, 0x38, 0x38, 0x7c, 0xfe, 0xff, 0xfe, 0x7c,
+   0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x04, 0x1f,
+   0x00, 0x08, 0x08, 0x08, 0x1c, 0x3e, 0x7f, 0xff,
+   0x00, 0x00, 0x00, 0x00, 0x10, 0x10, 0x10, 0xfe,
+   0x08, 0x08, 0x08, 0x1f, 0x08, 0x00, 0x00, 0x00,
+   0x38, 0x10, 0x10, 0xff, 0x10, 0x10, 0x10, 0x00,
+   0x10, 0x10, 0x10, 0xfc, 0x10, 0x10, 0x00, 0x00
   };
 
 void screen_init(void)
@@ -262,142 +274,148 @@ void screen_bigprint(unsigned char x,unsigned char y,char *c)
     }
 }
 
+void screen_icon_reset(void)
+{
+  screen_icon_counter=0x1B00;
+}
+
 void screen_icon(unsigned char x, unsigned char y, unsigned char o, unsigned char i, bool d)
 {
-  o *= 4;
+  // blast all sprites
+  msx_vfill(0x1b00,0,128);
   
   switch(i)
     {
     case ICON_CLEAR_SKY: // clear sky
       // Sun with clouds
-      msx_vpoke(0x1b00+o,y);
-      msx_vpoke(0x1b01+o,x);
-      msx_vpoke(0x1b02+o,d == true ? 0x00 : 32);
-      msx_vpoke(0x1b03+o,0x0A);
+      msx_vpoke(screen_icon_counter++,y);
+      msx_vpoke(screen_icon_counter++,x);
+      msx_vpoke(screen_icon_counter++,d == true ? 0x00 : 32);
+      msx_vpoke(screen_icon_counter++,0x0A);
       break;
     case ICON_FEW_CLOUDS: // few clouds
-      msx_vpoke(0x1b00+o,y);
-      msx_vpoke(0x1b01+o,x);
-      msx_vpoke(0x1b02+o,0x08);
-      msx_vpoke(0x1b03+o,0x0F);
+      msx_vpoke(screen_icon_counter++,y);
+      msx_vpoke(screen_icon_counter++,x);
+      msx_vpoke(screen_icon_counter++,0x08);
+      msx_vpoke(screen_icon_counter++,0x0F);
 
-      msx_vpoke(0x1b04+o,y);
-      msx_vpoke(0x1b05+o,x);
-      msx_vpoke(0x1b06+o,d == true ? 0x04 : 32);
-      msx_vpoke(0x1b07+o,0x0A);
+      msx_vpoke(screen_icon_counter++,y);
+      msx_vpoke(screen_icon_counter++,x);
+      msx_vpoke(screen_icon_counter++,d == true ? 0x04 : 32);
+      msx_vpoke(screen_icon_counter++,0x0A);
       break;
     case ICON_SCATTERED_CLOUDS: // Scattered clouds
-      msx_vpoke(0x1b00+o,y);
-      msx_vpoke(0x1b01+o,x);
-      msx_vpoke(0x1b02+o,0x10);
-      msx_vpoke(0x1b03+o,0x0F);
+      msx_vpoke(screen_icon_counter++,y);
+      msx_vpoke(screen_icon_counter++,x);
+      msx_vpoke(screen_icon_counter++,0x10);
+      msx_vpoke(screen_icon_counter++,0x0F);
       break;
     case ICON_BROKEN_CLOUDS: // broken clouds
-      msx_vpoke(0x1b00+o,y);
-      msx_vpoke(0x1b01+o,x);
-      msx_vpoke(0x1b02+o,16);
-      msx_vpoke(0x1b03+o,0x0e);
+      msx_vpoke(screen_icon_counter++,y);
+      msx_vpoke(screen_icon_counter++,x);
+      msx_vpoke(screen_icon_counter++,16);
+      msx_vpoke(screen_icon_counter++,0x0e);
 
-      msx_vpoke(0x1b04+o,y);
-      msx_vpoke(0x1b05+o,x);
-      msx_vpoke(0x1b06+o,20);
-      msx_vpoke(0x1b07+o,0x01);      
+      msx_vpoke(screen_icon_counter++,y);
+      msx_vpoke(screen_icon_counter++,x);
+      msx_vpoke(screen_icon_counter++,20);
+      msx_vpoke(screen_icon_counter++,0x01);      
       break;
     case ICON_SHOWER_RAIN: // shower rain
-      msx_vpoke(0x1b00+o,y);
-      msx_vpoke(0x1b01+o,x);
-      msx_vpoke(0x1b02+o,56);
-      msx_vpoke(0x1b03+o,0x04);
+      msx_vpoke(screen_icon_counter++,y);
+      msx_vpoke(screen_icon_counter++,x);
+      msx_vpoke(screen_icon_counter++,56);
+      msx_vpoke(screen_icon_counter++,0x04);
 
       if (d == true)
 	{
-	  msx_vpoke(0x1b04+o,y);
-	  msx_vpoke(0x1b05+o,x);
-	  msx_vpoke(0x1b06+o,16);
-	  msx_vpoke(0x1b07+o,0x0e);
+	  msx_vpoke(screen_icon_counter++,y);
+	  msx_vpoke(screen_icon_counter++,x);
+	  msx_vpoke(screen_icon_counter++,16);
+	  msx_vpoke(screen_icon_counter++,0x0e);
 	  
-	  msx_vpoke(0x1b08+o,y);
-	  msx_vpoke(0x1b09+o,x);
-	  msx_vpoke(0x1b0a+o,20);
-	  msx_vpoke(0x1b0b+o,0x01);
+	  msx_vpoke(screen_icon_counter++,y);
+	  msx_vpoke(screen_icon_counter++,x);
+	  msx_vpoke(screen_icon_counter++,20);
+	  msx_vpoke(screen_icon_counter++,0x01);
 	}
       else
 	{
-	  msx_vpoke(0x1b04+o,y);
-	  msx_vpoke(0x1b05+o,x);
-	  msx_vpoke(0x1b06+o,0x08);
-	  msx_vpoke(0x1b07+o,0x0F);
+	  msx_vpoke(screen_icon_counter++,y);
+	  msx_vpoke(screen_icon_counter++,x);
+	  msx_vpoke(screen_icon_counter++,0x08);
+	  msx_vpoke(screen_icon_counter++,0x0F);
 	  
-	  msx_vpoke(0x1b08+o,y);
-	  msx_vpoke(0x1b09+o,x);
-	  msx_vpoke(0x1b0a+o,d == true ? 0x04 : 32);
-	  msx_vpoke(0x1b0b+o,0x0A);
+	  msx_vpoke(screen_icon_counter++,y);
+	  msx_vpoke(screen_icon_counter++,x);
+	  msx_vpoke(screen_icon_counter++,d == true ? 0x04 : 32);
+	  msx_vpoke(screen_icon_counter++,0x0A);
 	}
       break;
     case ICON_RAIN: // rain
-      msx_vpoke(0x1b00+o,y);
-      msx_vpoke(0x1b01+o,x);
-      msx_vpoke(0x1b02+o,56);
-      msx_vpoke(0x1b03+o,0x04);
+      msx_vpoke(screen_icon_counter++,y);
+      msx_vpoke(screen_icon_counter++,x);
+      msx_vpoke(screen_icon_counter++,56);
+      msx_vpoke(screen_icon_counter++,0x04);
 
-      msx_vpoke(0x1b04+o,y);
-      msx_vpoke(0x1b05+o,x);
-      msx_vpoke(0x1b06+o,8);
-      msx_vpoke(0x1b07+o,0x0F);
+      msx_vpoke(screen_icon_counter++,y);
+      msx_vpoke(screen_icon_counter++,x);
+      msx_vpoke(screen_icon_counter++,8);
+      msx_vpoke(screen_icon_counter++,0x0F);
 
-      msx_vpoke(0x1b08+o,y);
-      msx_vpoke(0x1b09+o,x);
-      msx_vpoke(0x1b0a+o,4);
-      msx_vpoke(0x1b0b+o,0x0A);
+      msx_vpoke(screen_icon_counter++,y);
+      msx_vpoke(screen_icon_counter++,x);
+      msx_vpoke(screen_icon_counter++,4);
+      msx_vpoke(screen_icon_counter++,0x0A);
       break;
     case ICON_THUNDERSTORM: // thunderstorm
-      msx_vpoke(0x1b00+o,y);
-      msx_vpoke(0x1b01+o,x);
-      msx_vpoke(0x1b02+o,48);
-      msx_vpoke(0x1b03+o,0x0A);
+      msx_vpoke(screen_icon_counter++,y);
+      msx_vpoke(screen_icon_counter++,x);
+      msx_vpoke(screen_icon_counter++,48);
+      msx_vpoke(screen_icon_counter++,0x0A);
       
-      msx_vpoke(0x1b04+o,y);
-      msx_vpoke(0x1b05+o,x);
-      msx_vpoke(0x1b06+o,16);
-      msx_vpoke(0x1b07+o,0x0e);
+      msx_vpoke(screen_icon_counter++,y);
+      msx_vpoke(screen_icon_counter++,x);
+      msx_vpoke(screen_icon_counter++,16);
+      msx_vpoke(screen_icon_counter++,0x0e);
 
-      msx_vpoke(0x1b08+o,y);
-      msx_vpoke(0x1b09+o,x);
-      msx_vpoke(0x1b0a+o,20);
-      msx_vpoke(0x1b0b+o,0x01);      
+      msx_vpoke(screen_icon_counter++,y);
+      msx_vpoke(screen_icon_counter++,x);
+      msx_vpoke(screen_icon_counter++,20);
+      msx_vpoke(screen_icon_counter++,0x01);      
 
-      msx_vpoke(0x1b0c+o,y);
-      msx_vpoke(0x1b0d+o,x);
-      msx_vpoke(0x1b0e+o,56);
-      msx_vpoke(0x1b0f+o,0x04);
+      msx_vpoke(screen_icon_counter++,y);
+      msx_vpoke(screen_icon_counter++,x);
+      msx_vpoke(screen_icon_counter++,56);
+      msx_vpoke(screen_icon_counter++,0x04);
       break;
 
     case ICON_SNOW: // snow
-      msx_vpoke(0x1b00+o,y);
-      msx_vpoke(0x1b01+o,x);
-      msx_vpoke(0x1b02+o,60);
-      msx_vpoke(0x1b03+o,0x0e);
+      msx_vpoke(screen_icon_counter++,y);
+      msx_vpoke(screen_icon_counter++,x);
+      msx_vpoke(screen_icon_counter++,60);
+      msx_vpoke(screen_icon_counter++,0x0e);
       
-      msx_vpoke(0x1b04+o,y);
-      msx_vpoke(0x1b05+o,x);
-      msx_vpoke(0x1b06+o,16);
-      msx_vpoke(0x1b07+o,0x0f);
+      msx_vpoke(screen_icon_counter++,y);
+      msx_vpoke(screen_icon_counter++,x);
+      msx_vpoke(screen_icon_counter++,16);
+      msx_vpoke(screen_icon_counter++,0x0f);
 
-      msx_vpoke(0x1b08+o,y);
-      msx_vpoke(0x1b09+o,x);
-      msx_vpoke(0x1b0a+o,20);
-      msx_vpoke(0x1b0b+o,0x01);      
+      msx_vpoke(screen_icon_counter++,y);
+      msx_vpoke(screen_icon_counter++,x);
+      msx_vpoke(screen_icon_counter++,20);
+      msx_vpoke(screen_icon_counter++,0x01);      
 
     case ICON_MIST: // mist
-      msx_vpoke(0x1b00+o,y);
-      msx_vpoke(0x1b01+o,x);
-      msx_vpoke(0x1b02+o,28);
-      msx_vpoke(0x1b03+o,0x0f);
+      msx_vpoke(screen_icon_counter++,y);
+      msx_vpoke(screen_icon_counter++,x);
+      msx_vpoke(screen_icon_counter++,28);
+      msx_vpoke(screen_icon_counter++,0x0f);
       
-      msx_vpoke(0x1b04+o,y);
-      msx_vpoke(0x1b05+o,x);
-      msx_vpoke(0x1b06+o,24);
-      msx_vpoke(0x1b07+o,0x0e);
+      msx_vpoke(screen_icon_counter++,y);
+      msx_vpoke(screen_icon_counter++,x);
+      msx_vpoke(screen_icon_counter++,24);
+      msx_vpoke(screen_icon_counter++,0x0e);
       break;
     }
 }
@@ -424,6 +442,7 @@ void screen_daily(char *date,
 {
   void *param = &udgs;
 
+  screen_icon_reset();
   console_ioctl(IOCTL_GENCON_SET_UDGS,&param);
   msx_color(foregroundColor,backgroundColor,backgroundColor);
   clrscr();
@@ -436,12 +455,12 @@ void screen_daily(char *date,
   else
     strcpy(tmp,"  SHOW\nFARENHEIT");
   
-  smartkeys_display(NULL,NULL,"LOCATION","  SHOW\nFORECAST",tmp," REFRESH");
+  smartkeys_display(NULL,NULL,"LOCATION",NULL,tmp," REFRESH");
 
   msx_color(foregroundColor,backgroundColor,backgroundColor);
   
   gotoxy(8,0); cprintf("%s",date);  
-  screen_icon(32,8,0,icon,dn);
+  screen_icon(24,24,0,icon,dn);
   screen_bigprint(2,1,temperature);
   gotoxy(23,4); cprintf("%s",pressure);
   gotoxy(13,7); cprintf("%s",description);
@@ -503,24 +522,44 @@ void screen_weather_could_not_get()
   smartkeys_status("\n  COULD NOT RETRIEVE WEATHER DATA.");
 }
 
+void screen_weather_parsing()
+{
+  smartkeys_display(NULL,NULL,NULL,NULL,NULL,NULL);
+  smartkeys_status("\n  PARSING WEATHER DATA...");
+}
+
 void screen_forecast_init(void)
 {
   clrscr();
   eos_write_vdp_register(1,0xE3);
   msx_vwrite(spritedata,0x3800,sizeof(spritedata));
+  screen_icon_reset();  
+}
 
+void screen_forecast_parsing(void)
+{
+  smartkeys_display(NULL,NULL,NULL,NULL,NULL,NULL);
+  smartkeys_status("\n  PARSING FORECAST DATA, PLEASE WAIT...");
+}
+
+void screen_forecast(unsigned char i, ForecastData *f)
+{
+  unsigned char o=i*5;
+  screen_icon(8,i*40,i,f->icon,true);
+  textbackground(1); textcolor(15); gotoxy(5,o); cprintf("%18s%3s %5s","",f->dow, f->date);
+  textbackground(9); textcolor(15); gotoxy(14,o+1); cprintf(" LO:%5s",f->lo);
+  textbackground(4); textcolor(15); gotoxy(23,o+1); cprintf(" HI:%5s",f->hi);
+  textbackground(15); textcolor(1); gotoxy(5,o+1); cprintf("%5s%s",f->pressure,optData.units == IMPERIAL ? "\"Hg " : " hPa");
+  textbackground(8); textcolor(0); gotoxy(5,o+2); cprintf("%27s",f->wind);
+  textbackground(15); textcolor(1); gotoxy(5,o+3); cprintf("%27s",f->desc);
+}
+
+void screen_forecast_keys(void)
+{
   if (optData.units == IMPERIAL)
     strcpy(tmp,"  SHOW\n CELSIUS");
   else
     strcpy(tmp,"  SHOW\nFARENHEIT");
   
-  smartkeys_display(NULL,"  NEXT\n  PAGE","LOCATION","  SHOW\nFORECAST",tmp," REFRESH");
-
-}
-
-void screen_forecast(unsigned char i, ForecastData *f)
-{
-  screen_icon(8,i*40,i,0,true);
-  gotoxy(4,i*4); cprintf("%16s",f->date);
-
+  smartkeys_display(NULL,"  NEXT\n  PAGE","LOCATION","  SHOW\n DAILY",tmp," REFRESH");  
 }

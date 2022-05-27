@@ -36,7 +36,7 @@ void main(void)
 	weather();
 	break;
       case FORECAST:
-	forecast();
+	weather();
 	break;
       case DONE:
 	break;

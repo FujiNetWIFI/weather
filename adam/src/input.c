@@ -27,6 +27,27 @@ void input_weather(void)
 {
   switch (eos_end_read_keyboard())
     {
+    case 0x84:
+      state=FORECAST;
+      timer=1;
+      break;
+    case 0x85:
+      optData.units = (optData.units == IMPERIAL ? METRIC : IMPERIAL);
+      options_save(&optData);
+    case 0x86:
+      timer=1;
+      break;
+    }
+}
+
+void input_forecast(void)
+{
+  switch (eos_end_read_keyboard())
+    {
+    case 0x84:
+      state=WEATHER;
+      timer=1;
+      break;
     case 0x85:
       optData.units = (optData.units == IMPERIAL ? METRIC : IMPERIAL);
       options_save(&optData);

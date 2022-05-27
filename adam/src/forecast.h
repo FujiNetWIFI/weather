@@ -19,11 +19,11 @@ typedef struct
   char hi[8];
   char lo[8];
   char pressure[10];
-  char wind[8];
-  char dir[8];
+  char wind[27];
   char rain[12];
   char snow[12];
   char pop[8];
+  char desc[18];
 } ForecastData;
 
 void forecast(void);

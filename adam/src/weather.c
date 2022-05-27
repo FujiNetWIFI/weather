@@ -90,6 +90,8 @@ void weather(void)
   
   if (!io_weather(json))
     screen_weather_could_not_get();
+  else
+    screen_weather_parsing();
 
   faux_parse_json("\"current\":{\"dt\":",0);
   dt=atol(json_part);

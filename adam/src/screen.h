@@ -44,8 +44,11 @@ void screen_location_detect(void);
 
 void screen_weather_init(void);
 void screen_weather_could_not_get(void);
+void screen_weather_parsing(void);
 
 void screen_forecast_init(void);
 void screen_forecast(unsigned char i, ForecastData *f);
+void screen_forecast_keys(void);
+void screen_forecast_parsing(void);
 
 #endif /* SCREEN_H */
